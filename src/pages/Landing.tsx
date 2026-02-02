@@ -3,97 +3,113 @@ import { Button } from '@/components/ui/button';
 import { Layout } from '@/components/layout/Layout';
 import { SubjectCard } from '@/components/SubjectCard';
 import { SUBJECTS } from '@/lib/constants';
-import { CheckCircle, BookOpen, Trophy, Clock, Users, TrendingUp } from 'lucide-react';
+import { CheckCircle, BookOpen, Trophy, Clock, Users, TrendingUp, Award, Star, Sparkles } from 'lucide-react';
 
 export default function Landing() {
   const features = [
     {
       icon: BookOpen,
-      title: "6 ta fan bo'yicha testlar",
-      description: "Matematika, Fizika, Ingliz tili, Tarix, Rus tili va Ona tili bo'yicha testlar",
+      title: "Professional testlar",
+      description: "6 ta fan bo'yicha mutaxassislar tomonidan tayyorlangan testlar",
     },
     {
       icon: Clock,
-      title: "Vaqt cheklovi",
-      description: "Har bir test uchun vaqt belgilangan - haqiqiy imtihonga tayyorgarlik",
+      title: "Real vaqt cheklovi",
+      description: "Haqiqiy imtihon sharoitida o'zingizni sinab ko'ring",
     },
     {
       icon: Trophy,
-      title: "Reyting jadvali",
-      description: "O'z natijalaringizni boshqalar bilan solishtiring va g'olib bo'ling",
+      title: "Reyting tizimi",
+      description: "O'z natijalaringizni kuzating va raqobatda g'olib bo'ling",
     },
     {
       icon: TrendingUp,
-      title: "Statistika",
-      description: "O'z rivojlanishingizni kuzatib boring va zaif tomonlaringizni aniqlang",
+      title: "Batafsil tahlil",
+      description: "Har bir javobingiz uchun tushuntirishlar va statistika",
     },
+  ];
+
+  const stats = [
+    { value: "10,000+", label: "Foydalanuvchilar", icon: Users },
+    { value: "5,000+", label: "Savollar", icon: BookOpen },
+    { value: "98%", label: "Mamnuniyat", icon: Star },
   ];
 
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero opacity-10" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,hsl(var(--primary)/0.1),transparent_50%)]" />
+      <section className="relative overflow-hidden section-premium">
+        {/* Decorative Elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        </div>
         
-        <div className="container relative py-24 md:py-32">
+        <div className="container relative py-24 lg:py-32">
           <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary mb-8 animate-fade-in">
-              <CheckCircle className="h-4 w-4" />
-              <span>O'zbekiston bo'ylab 10,000+ foydalanuvchi</span>
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-5 py-2 text-sm font-medium text-accent mb-8 animate-fade-up">
+              <Award className="h-4 w-4" />
+              <span>O'zbekistonning #1 test platformasi</span>
             </div>
             
-            <h1 className="font-display text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in">
+            {/* Main Heading */}
+            <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-6 animate-fade-up delay-100 text-balance">
               Imtihonlarga 
-              <span className="gradient-text"> professional </span>
-              darajada tayyorlaning
+              <span className="block mt-2">
+                <span className="gradient-gold">professional</span> darajada tayyorlaning
+              </span>
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 animate-fade-in">
-              MockTest Pro bilan real imtihon sharoitida o'zingizni sinab ko'ring. 
-              6 ta fan, minglab savollar, va tez natijalar bilan muvaffaqiyatga erishing.
+            {/* Subtitle */}
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 animate-fade-up delay-200 leading-relaxed">
+              MockTest Professional bilan real imtihon sharoitida o'zingizni sinab ko'ring. 
+              Minglab savollar, tez natijalar va batafsil tahlil.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 animate-fade-in">
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 animate-fade-up delay-300">
               <Link to="/register">
-                <Button variant="gradient" size="xl" className="w-full sm:w-auto">
+                <Button variant="premium" size="xl">
+                  <Sparkles className="h-5 w-5 mr-2" />
                   Bepul boshlash
                 </Button>
               </Link>
               <Link to="/subjects">
-                <Button variant="outline" size="xl" className="w-full sm:w-auto">
+                <Button variant="outline" size="xl">
                   Fanlarni ko'rish
                 </Button>
               </Link>
             </div>
 
-            <div className="flex items-center gap-8 mt-12 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <span>10,000+ foydalanuvchi</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-primary" />
-                <span>5,000+ savollar</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-primary" />
-                <span>98% mamnuniyat</span>
-              </div>
+            {/* Stats */}
+            <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 mt-16 pt-8 border-t border-border/60 animate-fade-up delay-400">
+              {stats.map((stat, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                    <stat.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xl font-semibold text-foreground">{stat.value}</p>
+                    <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-muted/30">
+      <section className="py-24 bg-card border-y border-border/60">
         <div className="container">
           <div className="text-center mb-16">
-            <h2 className="font-display text-3xl md:text-4xl font-bold mb-4">
-              Nima uchun MockTest Pro?
+            <p className="text-sm font-medium tracking-elegant text-accent uppercase mb-3">Imkoniyatlar</p>
+            <h2 className="font-serif text-3xl md:text-4xl font-semibold mb-4">
+              Nima uchun MockTest Professional?
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Eng zamonaviy texnologiyalar bilan qurilgan platforma sizga eng yaxshi natijalarni kafolatlaydi
+              Eng zamonaviy platforma sizga muvaffaqiyatli tayyorgarlikni kafolatlaydi
             </p>
           </div>
 
@@ -101,13 +117,13 @@ export default function Landing() {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="group bg-card rounded-2xl p-6 shadow-sm border border-border/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+                className="group card-premium rounded-lg p-6"
               >
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-md bg-primary/10 text-primary mb-5 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
                   <feature.icon className="h-6 w-6" />
                 </div>
-                <h3 className="font-display text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <h3 className="font-serif text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -115,10 +131,11 @@ export default function Landing() {
       </section>
 
       {/* Subjects Section */}
-      <section className="py-20">
+      <section className="py-24 section-premium">
         <div className="container">
           <div className="text-center mb-16">
-            <h2 className="font-display text-3xl md:text-4xl font-bold mb-4">
+            <p className="text-sm font-medium tracking-elegant text-accent uppercase mb-3">Fanlar</p>
+            <h2 className="font-serif text-3xl md:text-4xl font-semibold mb-4">
               Barcha fanlar bir joyda
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -140,17 +157,25 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-primary text-primary-foreground">
-        <div className="container text-center">
-          <h2 className="font-display text-3xl md:text-4xl font-bold mb-4">
-            Hoziroq boshlang!
+      <section className="py-24 bg-primary text-primary-foreground relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-white rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-white rounded-full blur-3xl" />
+        </div>
+        
+        <div className="container relative text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 mb-6">
+            <Trophy className="h-8 w-8" />
+          </div>
+          <h2 className="font-serif text-3xl md:text-4xl font-semibold mb-4">
+            Muvaffaqiyat yo'lini hoziroq boshlang
           </h2>
-          <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
+          <p className="text-primary-foreground/80 max-w-xl mx-auto mb-8 text-lg">
             Ro'yxatdan o'ting va birinchi testingizni bepul ishlang. 
-            Muvaffaqiyat yo'lida birinchi qadamni qo'ying.
+            Professional tayyorgarlik sizni kutmoqda.
           </p>
           <Link to="/register">
-            <Button size="xl" variant="secondary" className="font-bold">
+            <Button variant="gold" size="xl">
               Bepul ro'yxatdan o'tish
             </Button>
           </Link>
@@ -158,15 +183,28 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t">
-        <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 font-display font-bold">
-            <BookOpen className="h-5 w-5 text-primary" />
-            <span>MockTest Pro</span>
+      <footer className="py-12 bg-card border-t border-border/60">
+        <div className="container">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-serif text-lg font-semibold">MockTest</span>
+                <span className="text-[10px] tracking-elegant text-accent font-medium uppercase">Professional</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+              <Link to="/subjects" className="hover:text-foreground transition-colors">Fanlar</Link>
+              <Link to="/leaderboard" className="hover:text-foreground transition-colors">Reyting</Link>
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              © 2024 MockTest Professional. Barcha huquqlar himoyalangan.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            © 2024 MockTest Pro. Barcha huquqlar himoyalangan.
-          </p>
         </div>
       </footer>
     </Layout>

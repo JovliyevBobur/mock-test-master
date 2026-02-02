@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
+import { PageTransition } from '@/components/PageTransition';
+import { FloatingShapes } from '@/components/ui/FloatingShapes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getSubjectById, SUBJECTS } from '@/lib/constants';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SubjectCard } from '@/components/SubjectCard';
-import { Clock, FileQuestion, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Clock, FileQuestion, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
 
 interface Test {
   id: string;
@@ -60,7 +61,6 @@ export default function Subjects() {
       .order('created_at', { ascending: false });
 
     if (!error && testsData) {
-      // Get question counts for each test
       const testsWithCounts = await Promise.all(
         testsData.map(async (test) => {
           const { count } = await supabase
@@ -84,40 +84,64 @@ export default function Subjects() {
   if (!subjectId) {
     return (
       <Layout>
-        <div className="container py-8">
-          <div className="mb-8">
-            <h1 className="font-display text-3xl font-bold mb-2">Fanlar</h1>
-            <p className="text-muted-foreground">
-              O'zingizga kerakli fanni tanlang va testlarni boshlang
-            </p>
-          </div>
+        <PageTransition>
+          <div className="relative min-h-[80vh] section-premium overflow-hidden">
+            <FloatingShapes />
+            
+            <div className="container relative py-16">
+              <div className="text-center mb-16">
+                <p className="text-sm font-medium tracking-elegant text-accent uppercase mb-3 animate-fade-up">Fanlar</p>
+                <h1 className="font-serif text-4xl md:text-5xl font-semibold mb-4 animate-fade-up delay-100">
+                  O'zingizga kerakli fanni tanlang
+                </h1>
+                <p className="text-muted-foreground max-w-2xl mx-auto animate-fade-up delay-200">
+                  6 ta fan bo'yicha professional testlar. Har bir fan bo'yicha minglab savollar.
+                </p>
+              </div>
 
-          {loading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="border-2">
-                  <CardContent className="p-8">
-                    <Skeleton className="h-12 w-12 rounded-lg mx-auto mb-4" />
-                    <Skeleton className="h-6 w-24 mx-auto mb-2" />
-                    <Skeleton className="h-4 w-20 mx-auto" />
-                  </CardContent>
-                </Card>
-              ))}
+              {loading ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <Card key={i} className="border-2">
+                      <CardContent className="p-8">
+                        <Skeleton className="h-16 w-16 rounded-xl mx-auto mb-4" />
+                        <Skeleton className="h-6 w-32 mx-auto mb-2" />
+                        <Skeleton className="h-4 w-24 mx-auto" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {SUBJECTS.map((sub, index) => (
+                    <Link 
+                      key={sub.id} 
+                      to={`/subjects/${sub.id}`}
+                      className="animate-fade-up"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <Card className="group card-premium rounded-xl overflow-hidden cursor-pointer h-full">
+                        <CardContent className="p-8 text-center">
+                          <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10 mx-auto mb-6 text-5xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
+                            {sub.icon}
+                          </div>
+                          <h3 className="font-serif text-2xl font-semibold mb-2">{sub.name}</h3>
+                          <p className="text-muted-foreground mb-4">
+                            {testCounts[sub.id] || 0} ta test mavjud
+                          </p>
+                          <div className="flex items-center justify-center gap-2 text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <span>Ko'rish</span>
+                            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {SUBJECTS.map((sub) => (
-                <SubjectCard
-                  key={sub.id}
-                  id={sub.id}
-                  name={sub.name}
-                  icon={sub.icon}
-                  testCount={testCounts[sub.id] || 0}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        </PageTransition>
       </Layout>
     );
   }
@@ -125,93 +149,113 @@ export default function Subjects() {
   // Subject detail view
   return (
     <Layout>
-      <div className="container py-8">
-        <Link to="/subjects" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" />
-          <span>Fanlar</span>
-        </Link>
+      <PageTransition>
+        <div className="relative min-h-[80vh] section-premium overflow-hidden">
+          <FloatingShapes />
+          
+          <div className="container relative py-12">
+            <Link 
+              to="/subjects" 
+              className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors group"
+            >
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              <span>Barcha fanlar</span>
+            </Link>
 
-        <div className="flex items-center gap-4 mb-8">
-          <div className="text-5xl">{subject?.icon}</div>
-          <div>
-            <h1 className="font-display text-3xl font-bold">{subject?.name}</h1>
-            <p className="text-muted-foreground">
-              {tests.length} ta test mavjud
-            </p>
+            <div className="flex items-center gap-6 mb-12 animate-fade-up">
+              <div className="flex items-center justify-center w-24 h-24 rounded-2xl bg-primary/10 text-6xl">
+                {subject?.icon}
+              </div>
+              <div>
+                <h1 className="font-serif text-4xl font-semibold mb-2">{subject?.name}</h1>
+                <p className="text-muted-foreground text-lg">
+                  {tests.length} ta test mavjud
+                </p>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-48 mb-2" />
+                      <Skeleton className="h-4 w-full" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-11 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : tests.length === 0 ? (
+              <Card className="text-center py-20 card-premium rounded-xl animate-fade-up">
+                <CardContent>
+                  <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-muted mx-auto mb-6">
+                    <FileQuestion className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-serif text-2xl font-semibold mb-3">
+                    Hozircha testlar yo'q
+                  </h3>
+                  <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                    Bu fan bo'yicha testlar tez orada qo'shiladi. Boshqa fanlarni ko'rib chiqishingiz mumkin.
+                  </p>
+                  <Link to="/subjects">
+                    <Button variant="outline" size="lg">
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Boshqa fanlarni ko'rish
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tests.map((test, index) => (
+                  <Card 
+                    key={test.id} 
+                    className="group card-premium rounded-xl animate-fade-up"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <CardHeader>
+                      <CardTitle className="font-serif text-xl">{test.title}</CardTitle>
+                      {test.description && (
+                        <CardDescription className="line-clamp-2">{test.description}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
+                        <div className="flex items-center gap-2">
+                          <FileQuestion className="h-4 w-4" />
+                          <span>{test.question_count} ta savol</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          <span>{test.duration_minutes} daqiqa</span>
+                        </div>
+                      </div>
+                      
+                      {user ? (
+                        <Link to={`/test/${test.id}`}>
+                          <Button className="w-full group/btn" variant="premium">
+                            <Sparkles className="h-4 w-4 mr-2 transition-transform group-hover/btn:rotate-12" />
+                            Testni boshlash
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Link to="/login">
+                          <Button variant="outline" className="w-full">
+                            Kirish kerak
+                          </Button>
+                        </Link>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
-        {loading ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-48 mb-2" />
-                  <Skeleton className="h-4 w-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-10 w-full" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : tests.length === 0 ? (
-          <Card className="text-center py-16">
-            <CardContent>
-              <FileQuestion className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-display text-xl font-semibold mb-2">
-                Hozircha testlar yo'q
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                Bu fan bo'yicha testlar tez orada qo'shiladi
-              </p>
-              <Link to="/subjects">
-                <Button variant="outline">Boshqa fanlarni ko'rish</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tests.map((test) => (
-              <Card key={test.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                <CardHeader>
-                  <CardTitle className="font-display">{test.title}</CardTitle>
-                  {test.description && (
-                    <CardDescription>{test.description}</CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                    <div className="flex items-center gap-1">
-                      <FileQuestion className="h-4 w-4" />
-                      <span>{test.question_count} ta savol</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{test.duration_minutes} daqiqa</span>
-                    </div>
-                  </div>
-                  
-                  {user ? (
-                    <Link to={`/test/${test.id}`}>
-                      <Button className="w-full group-hover:bg-primary/90">
-                        Testni boshlash
-                        <ArrowRight className="h-4 w-4 ml-2" />
-                      </Button>
-                    </Link>
-                  ) : (
-                    <Link to="/login">
-                      <Button variant="outline" className="w-full">
-                        Kirish kerak
-                      </Button>
-                    </Link>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+      </PageTransition>
     </Layout>
   );
 }

@@ -12,12 +12,16 @@ interface Profile {
   updated_at: string;
 }
 
+type AppRole = 'super_admin' | 'admin' | 'user';
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  appRole: AppRole | null;
   loading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -30,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [appRole, setAppRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
@@ -44,9 +49,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const fetchAppRole = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+    
+    if (!error && data) {
+      setAppRole(data.role as AppRole);
+    } else {
+      setAppRole('user');
+    }
+  };
+
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id);
+      await Promise.all([
+        fetchProfile(user.id),
+        fetchAppRole(user.id),
+      ]);
     }
   };
 
@@ -56,9 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        Promise.all([
+          fetchProfile(session.user.id),
+          fetchAppRole(session.user.id),
+        ]).then(() => setLoading(false));
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Listen for auth changes
@@ -68,12 +96,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Small delay to ensure profile trigger has completed
-          setTimeout(() => fetchProfile(session.user.id), 100);
+          // Small delay to ensure triggers have completed
+          setTimeout(async () => {
+            await Promise.all([
+              fetchProfile(session.user.id),
+              fetchAppRole(session.user.id),
+            ]);
+            setLoading(false);
+          }, 100);
         } else {
           setProfile(null);
+          setAppRole(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -102,14 +137,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setAppRole(null);
   };
 
   const value = {
     user,
     session,
     profile,
+    appRole,
     loading,
-    isAdmin: profile?.role === 'admin',
+    isAdmin: appRole === 'admin' || appRole === 'super_admin',
+    isSuperAdmin: appRole === 'super_admin',
     signUp,
     signIn,
     signOut,

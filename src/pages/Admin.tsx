@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
 import { CosmicBackground } from '@/components/ui/CosmicBackground';
@@ -14,10 +14,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SUBJECTS, getSubjectById } from '@/lib/constants';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
-  Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp
+  Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,
+  Upload, FileText, Ban, UserCheck, Star, BarChart3, Target, Award
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -30,6 +33,8 @@ interface Test {
   duration_minutes: number;
   is_published: boolean;
   question_count?: number;
+  attempt_count?: number;
+  avg_score?: number;
 }
 
 interface Question {
@@ -46,23 +51,53 @@ interface Choice {
   order_index: number;
 }
 
+interface UserProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  is_blocked: boolean;
+  created_at: string;
+  role?: 'super_admin' | 'admin' | 'user';
+}
+
+interface TestStats {
+  id: string;
+  title: string;
+  subject: string;
+  attempt_count: number;
+  avg_score: number;
+}
+
 export default function Admin() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, session } = useAuth();
   const [tests, setTests] = useState<Test[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [topTests, setTopTests] = useState<TestStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [questionDialogOpen, setQuestionDialogOpen] = useState(false);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const [editingTest, setEditingTest] = useState<Test | null>(null);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [saving, setSaving] = useState(false);
-  const [stats, setStats] = useState({ tests: 0, questions: 0, users: 0, attempts: 0 });
+  const [stats, setStats] = useState({ tests: 0, questions: 0, users: 0, attempts: 0, avgScore: 0 });
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subject, setSubject] = useState('math');
   const [duration, setDuration] = useState(30);
+
+  // PDF import state
+  const [pdfTitle, setPdfTitle] = useState('');
+  const [pdfSubject, setPdfSubject] = useState('math');
+  const [pdfDuration, setPdfDuration] = useState(30);
+  const [pdfContent, setPdfContent] = useState('');
+  const [importing, setImporting] = useState(false);
 
   // Question form state
   const [newQuestionText, setNewQuestionText] = useState('');
@@ -76,22 +111,108 @@ export default function Admin() {
   useEffect(() => {
     fetchTests();
     fetchStats();
-  }, []);
+    fetchTopTests();
+    if (isSuperAdmin) {
+      fetchUsers();
+    }
+  }, [isSuperAdmin]);
 
   const fetchStats = async () => {
     const [testsRes, questionsRes, usersRes, attemptsRes] = await Promise.all([
       supabase.from('tests').select('*', { count: 'exact', head: true }),
       supabase.from('questions').select('*', { count: 'exact', head: true }),
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('test_attempts').select('*', { count: 'exact', head: true }).not('completed_at', 'is', null),
+      supabase.from('test_attempts').select('score, total_questions').not('completed_at', 'is', null),
     ]);
+
+    const attempts = attemptsRes.data || [];
+    const avgScore = attempts.length > 0
+      ? attempts.reduce((acc, a) => acc + ((a.score || 0) / (a.total_questions || 1) * 100), 0) / attempts.length
+      : 0;
 
     setStats({
       tests: testsRes.count || 0,
       questions: questionsRes.count || 0,
       users: usersRes.count || 0,
-      attempts: attemptsRes.count || 0,
+      attempts: attempts.length,
+      avgScore: Math.round(avgScore),
     });
+  };
+
+  const fetchTopTests = async () => {
+    const { data: attempts } = await supabase
+      .from('test_attempts')
+      .select(`
+        test_id,
+        score,
+        total_questions,
+        tests (
+          id,
+          title,
+          subject
+        )
+      `)
+      .not('completed_at', 'is', null);
+
+    if (attempts) {
+      const testMap = new Map<string, { title: string; subject: string; scores: number[]; count: number }>();
+      
+      attempts.forEach((attempt: any) => {
+        if (attempt.tests) {
+          const testId = attempt.test_id;
+          if (!testMap.has(testId)) {
+            testMap.set(testId, {
+              title: attempt.tests.title,
+              subject: attempt.tests.subject,
+              scores: [],
+              count: 0,
+            });
+          }
+          const test = testMap.get(testId)!;
+          test.count++;
+          if (attempt.score && attempt.total_questions) {
+            test.scores.push((attempt.score / attempt.total_questions) * 100);
+          }
+        }
+      });
+
+      const topTestsArray: TestStats[] = Array.from(testMap.entries())
+        .map(([id, data]) => ({
+          id,
+          title: data.title,
+          subject: data.subject,
+          attempt_count: data.count,
+          avg_score: data.scores.length > 0 
+            ? Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length)
+            : 0,
+        }))
+        .sort((a, b) => b.attempt_count - a.attempt_count)
+        .slice(0, 5);
+
+      setTopTests(topTestsArray);
+    }
+  };
+
+  const fetchUsers = async () => {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (profiles) {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      
+      const usersWithRoles = profiles.map(p => ({
+        ...p,
+        role: roleMap.get(p.user_id) as 'super_admin' | 'admin' | 'user' || 'user',
+      }));
+      
+      setUsers(usersWithRoles);
+    }
   };
 
   const fetchTests = async () => {
@@ -103,11 +224,22 @@ export default function Admin() {
     if (data) {
       const testsWithCounts = await Promise.all(
         data.map(async (test) => {
-          const { count } = await supabase
-            .from('questions')
-            .select('*', { count: 'exact', head: true })
-            .eq('test_id', test.id);
-          return { ...test, question_count: count || 0 };
+          const [questionRes, attemptRes] = await Promise.all([
+            supabase.from('questions').select('*', { count: 'exact', head: true }).eq('test_id', test.id),
+            supabase.from('test_attempts').select('score, total_questions').eq('test_id', test.id).not('completed_at', 'is', null),
+          ]);
+          
+          const attempts = attemptRes.data || [];
+          const avgScore = attempts.length > 0
+            ? attempts.reduce((acc, a) => acc + ((a.score || 0) / (a.total_questions || 1) * 100), 0) / attempts.length
+            : 0;
+
+          return { 
+            ...test, 
+            question_count: questionRes.count || 0,
+            attempt_count: attempts.length,
+            avg_score: Math.round(avgScore),
+          };
         })
       );
       setTests(testsWithCounts);
@@ -171,6 +303,61 @@ export default function Admin() {
     resetForm();
     fetchTests();
     fetchStats();
+  };
+
+  const handlePdfImport = async () => {
+    if (!pdfTitle.trim() || !pdfContent.trim()) {
+      toast.error('Barcha maydonlarni to\'ldiring');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf-to-test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          pdfContent: pdfContent,
+          subject: pdfSubject,
+          title: pdfTitle,
+          duration_minutes: pdfDuration,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Import xatoligi');
+      }
+
+      toast.success(`${data.questions_count} ta savol muvaffaqiyatli import qilindi!`);
+      setPdfDialogOpen(false);
+      resetPdfForm();
+      fetchTests();
+      fetchStats();
+    } catch (error: any) {
+      toast.error(error.message || 'Import xatoligi');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setPdfContent(text);
+      if (!pdfTitle) {
+        setPdfTitle(file.name.replace(/\.[^/.]+$/, ''));
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleAddQuestion = async () => {
@@ -254,6 +441,39 @@ export default function Admin() {
     toast.success('Test o\'chirildi');
   };
 
+  const handleToggleUserBlock = async (userProfile: UserProfile) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_blocked: !userProfile.is_blocked })
+      .eq('id', userProfile.id);
+
+    if (error) {
+      toast.error('Xatolik yuz berdi');
+      return;
+    }
+
+    toast.success(userProfile.is_blocked ? 'Foydalanuvchi blokdan chiqarildi' : 'Foydalanuvchi bloklandi');
+    fetchUsers();
+  };
+
+  const handleChangeUserRole = async (userId: string, newRole: 'admin' | 'user') => {
+    // First delete existing role
+    await supabase.from('user_roles').delete().eq('user_id', userId);
+    
+    // Insert new role
+    const { error } = await supabase
+      .from('user_roles')
+      .insert({ user_id: userId, role: newRole });
+
+    if (error) {
+      toast.error('Xatolik yuz berdi');
+      return;
+    }
+
+    toast.success(`Foydalanuvchi roli ${newRole === 'admin' ? 'Admin' : 'Foydalanuvchi'}ga o'zgartirildi`);
+    fetchUsers();
+  };
+
   const openEditDialog = (test: Test) => {
     setEditingTest(test);
     setTitle(test.title);
@@ -275,6 +495,13 @@ export default function Admin() {
     setDescription('');
     setSubject('math');
     setDuration(30);
+  };
+
+  const resetPdfForm = () => {
+    setPdfTitle('');
+    setPdfSubject('math');
+    setPdfDuration(30);
+    setPdfContent('');
   };
 
   const resetQuestionForm = () => {
@@ -300,6 +527,17 @@ export default function Admin() {
       }
       return c;
     }));
+  };
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return <Badge className="bg-gradient-to-r from-amber-500 to-orange-600"><Crown className="h-3 w-3 mr-1" />Super Admin</Badge>;
+      case 'admin':
+        return <Badge variant="secondary"><Shield className="h-3 w-3 mr-1" />Admin</Badge>;
+      default:
+        return <Badge variant="outline">Foydalanuvchi</Badge>;
+    }
   };
 
   if (!isAdmin) {
@@ -337,187 +575,447 @@ export default function Admin() {
                 <h1 className="font-serif text-3xl font-bold">
                   {isSuperAdmin ? 'Super Admin Panel' : 'Admin Panel'}
                 </h1>
-                <p className="text-muted-foreground">Testlar va savollarni boshqarish</p>
+                <p className="text-muted-foreground">Testlar, savollar va foydalanuvchilarni boshqarish</p>
               </div>
             </div>
             
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button variant="premium" size="lg">
-                  <Plus className="h-5 w-5 mr-2" />
-                  Yangi test
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle className="font-serif text-xl">
-                    {editingTest ? 'Testni tahrirlash' : 'Yangi test yaratish'}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <div className="space-y-2">
-                    <Label>Test nomi</Label>
-                    <Input 
-                      value={title} 
-                      onChange={(e) => setTitle(e.target.value)} 
-                      placeholder="Masalan: Matematika - Algebra"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tavsif</Label>
-                    <Textarea 
-                      value={description} 
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Test haqida qisqacha ma'lumot"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+            <div className="flex gap-3">
+              {/* PDF Import Dialog */}
+              <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="lg">
+                    <Upload className="h-5 w-5 mr-2" />
+                    PDF Import
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="font-serif text-xl flex items-center gap-2">
+                      <FileText className="h-6 w-6" />
+                      PDF/Matndan test import qilish
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
                     <div className="space-y-2">
-                      <Label>Fan</Label>
-                      <Select value={subject} onValueChange={setSubject}>
-                        <SelectTrigger className="h-11">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SUBJECTS.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.icon} {s.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Vaqt (daqiqa)</Label>
+                      <Label>Test nomi</Label>
                       <Input 
-                        type="number" 
-                        value={duration} 
-                        onChange={(e) => setDuration(Number(e.target.value))}
-                        min={5}
-                        max={180}
+                        value={pdfTitle} 
+                        onChange={(e) => setPdfTitle(e.target.value)} 
+                        placeholder="Masalan: Matematika - Algebra testlari"
                         className="h-11"
                       />
                     </div>
-                  </div>
-                </div>
-                <DialogFooter className="mt-6">
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Bekor</Button>
-                  <Button variant="premium" onClick={handleSaveTest} disabled={saving}>
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                    Saqlash
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Stats */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[
-              { label: 'Testlar', value: stats.tests, icon: BookOpen, gradient: 'from-blue-500 to-indigo-600' },
-              { label: 'Savollar', value: stats.questions, icon: FileQuestion, gradient: 'from-amber-500 to-orange-600' },
-              { label: 'Foydalanuvchilar', value: stats.users, icon: Users, gradient: 'from-emerald-500 to-teal-600' },
-              { label: 'Urinishlar', value: stats.attempts, icon: TrendingUp, gradient: 'from-purple-500 to-pink-600' },
-            ].map((stat, idx) => (
-              <Card key={stat.label} className="card-premium animate-fade-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">{stat.label}</p>
-                      <p className="text-3xl font-serif font-bold mt-1">{stat.value}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Fan</Label>
+                        <Select value={pdfSubject} onValueChange={setPdfSubject}>
+                          <SelectTrigger className="h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SUBJECTS.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.icon} {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vaqt (daqiqa)</Label>
+                        <Input 
+                          type="number" 
+                          value={pdfDuration} 
+                          onChange={(e) => setPdfDuration(Number(e.target.value))}
+                          min={5}
+                          max={180}
+                          className="h-11"
+                        />
+                      </div>
                     </div>
-                    <div className={cn("p-3 rounded-xl bg-gradient-to-br text-white", stat.gradient)}>
-                      <stat.icon className="h-6 w-6" />
+                    <div className="space-y-2">
+                      <Label>Matn fayli yuklash</Label>
+                      <Input 
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".txt,.md"
+                        onChange={handleFileUpload}
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Yoki test matnini kiriting</Label>
+                      <Textarea 
+                        value={pdfContent} 
+                        onChange={(e) => setPdfContent(e.target.value)}
+                        placeholder={`Test savollarini quyidagi formatda kiriting:
+
+1. Savol matni?
+A) Javob varianti 1
+B) To'g'ri javob (*)
+C) Javob varianti 3
+D) Javob varianti 4
+
+2. Keyingi savol?
+...`}
+                        rows={10}
+                        className="font-mono text-sm"
+                      />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <DialogFooter className="mt-6">
+                    <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>Bekor</Button>
+                    <Button variant="premium" onClick={handlePdfImport} disabled={importing}>
+                      {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                      Import qilish
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
-          {/* Tests List */}
-          <Card className="card-premium animate-fade-up delay-400">
-            <CardHeader>
-              <CardTitle className="font-serif">Barcha testlar</CardTitle>
-              <CardDescription>Testlarni tahrirlash, savol qo'shish va nashr qilish</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : tests.length === 0 ? (
-                <div className="text-center py-16">
-                  <FileQuestion className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-serif text-xl font-semibold mb-2">Hali testlar yo'q</h3>
-                  <p className="text-muted-foreground mb-6">Birinchi testingizni yarating</p>
-                  <Button variant="premium" onClick={() => setDialogOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
+              {/* New Test Dialog */}
+              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button variant="premium" size="lg">
+                    <Plus className="h-5 w-5 mr-2" />
                     Yangi test
                   </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {tests.map((test) => {
-                    const sub = getSubjectById(test.subject);
-                    return (
-                      <div 
-                        key={test.id} 
-                        className="flex items-center gap-4 p-4 rounded-xl border bg-card/50 backdrop-blur-sm hover:shadow-md transition-all"
-                      >
-                        <div className="text-4xl">{sub?.icon}</div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-serif font-semibold text-lg truncate">{test.title}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {sub?.name} • {test.question_count} savol • {test.duration_minutes} daqiqa
-                          </p>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle className="font-serif text-xl">
+                      {editingTest ? 'Testni tahrirlash' : 'Yangi test yaratish'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <div className="space-y-2">
+                      <Label>Test nomi</Label>
+                      <Input 
+                        value={title} 
+                        onChange={(e) => setTitle(e.target.value)} 
+                        placeholder="Masalan: Matematika - Algebra"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tavsif</Label>
+                      <Textarea 
+                        value={description} 
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Test haqida qisqacha ma'lumot"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Fan</Label>
+                        <Select value={subject} onValueChange={setSubject}>
+                          <SelectTrigger className="h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SUBJECTS.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.icon} {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vaqt (daqiqa)</Label>
+                        <Input 
+                          type="number" 
+                          value={duration} 
+                          onChange={(e) => setDuration(Number(e.target.value))}
+                          min={5}
+                          max={180}
+                          className="h-11"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-6">
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Bekor</Button>
+                    <Button variant="premium" onClick={handleSaveTest} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                      Saqlash
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          {/* Tabs for Super Admin */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className={cn("grid w-full", isSuperAdmin ? "grid-cols-3" : "grid-cols-2")}>
+              <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Statistika
+              </TabsTrigger>
+              <TabsTrigger value="tests" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Testlar
+              </TabsTrigger>
+              {isSuperAdmin && (
+                <TabsTrigger value="users" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Foydalanuvchilar
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            {/* Dashboard Tab */}
+            <TabsContent value="dashboard" className="space-y-6">
+              {/* Stats */}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                {[
+                  { label: 'Testlar', value: stats.tests, icon: BookOpen, gradient: 'from-blue-500 to-indigo-600' },
+                  { label: 'Savollar', value: stats.questions, icon: FileQuestion, gradient: 'from-amber-500 to-orange-600' },
+                  { label: 'Foydalanuvchilar', value: stats.users, icon: Users, gradient: 'from-emerald-500 to-teal-600' },
+                  { label: 'Urinishlar', value: stats.attempts, icon: TrendingUp, gradient: 'from-purple-500 to-pink-600' },
+                  { label: "O'rtacha ball", value: `${stats.avgScore}%`, icon: Target, gradient: 'from-rose-500 to-red-600' },
+                ].map((stat, idx) => (
+                  <Card key={stat.label} className="card-premium animate-fade-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{stat.label}</p>
+                          <p className="text-3xl font-serif font-bold mt-1">{stat.value}</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <Switch 
-                              checked={test.is_published} 
-                              onCheckedChange={() => handleTogglePublish(test)} 
-                            />
-                            <span className={cn(
-                              "text-sm font-medium",
-                              test.is_published ? "text-success" : "text-muted-foreground"
-                            )}>
-                              {test.is_published ? 'Nashr' : 'Qoralama'}
-                            </span>
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => openQuestionDialog(test)}
-                          >
-                            <FileQuestion className="h-4 w-4 mr-1" />
-                            Savollar
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => openEditDialog(test)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => handleDelete(test.id)}
-                            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        <div className={cn("p-3 rounded-xl bg-gradient-to-br text-white", stat.gradient)}>
+                          <stat.icon className="h-6 w-6" />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Top Tests */}
+              <Card className="card-premium animate-fade-up delay-500">
+                <CardHeader>
+                  <CardTitle className="font-serif flex items-center gap-2">
+                    <Award className="h-5 w-5 text-amber-500" />
+                    Eng ko'p ishlangan testlar
+                  </CardTitle>
+                  <CardDescription>Foydalanuvchilar tomonidan eng ko'p ishlangan 5 ta test</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {topTests.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Hali test urinishlari yo'q
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {topTests.map((test, idx) => {
+                        const sub = getSubjectById(test.subject);
+                        return (
+                          <div key={test.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card/50 hover:bg-muted/50 transition-all">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white font-bold">
+                              {idx + 1}
+                            </div>
+                            <div className="text-3xl">{sub?.icon}</div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold truncate">{test.title}</h4>
+                              <p className="text-sm text-muted-foreground">{sub?.name}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-lg">{test.attempt_count}</p>
+                              <p className="text-xs text-muted-foreground">urinish</p>
+                            </div>
+                            <div className="text-right">
+                              <p className={cn(
+                                "font-bold text-lg",
+                                test.avg_score >= 80 ? "text-success" : test.avg_score >= 60 ? "text-warning" : "text-destructive"
+                              )}>
+                                {test.avg_score}%
+                              </p>
+                              <p className="text-xs text-muted-foreground">o'rtacha</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tests Tab */}
+            <TabsContent value="tests">
+              <Card className="card-premium animate-fade-up">
+                <CardHeader>
+                  <CardTitle className="font-serif">Barcha testlar</CardTitle>
+                  <CardDescription>Testlarni tahrirlash, savol qo'shish va nashr qilish</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : tests.length === 0 ? (
+                    <div className="text-center py-16">
+                      <FileQuestion className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="font-serif text-xl font-semibold mb-2">Hali testlar yo'q</h3>
+                      <p className="text-muted-foreground mb-6">Birinchi testingizni yarating</p>
+                      <Button variant="premium" onClick={() => setDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Yangi test
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {tests.map((test) => {
+                        const sub = getSubjectById(test.subject);
+                        return (
+                          <div 
+                            key={test.id} 
+                            className="flex items-center gap-4 p-4 rounded-xl border bg-card/50 backdrop-blur-sm hover:shadow-md transition-all"
+                          >
+                            <div className="text-4xl">{sub?.icon}</div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-serif font-semibold text-lg truncate">{test.title}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {sub?.name} • {test.question_count} savol • {test.duration_minutes} daqiqa
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {test.attempt_count} urinish • O'rtacha: {test.avg_score}%
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <Switch 
+                                  checked={test.is_published} 
+                                  onCheckedChange={() => handleTogglePublish(test)} 
+                                />
+                                <span className={cn(
+                                  "text-sm font-medium",
+                                  test.is_published ? "text-success" : "text-muted-foreground"
+                                )}>
+                                  {test.is_published ? 'Nashr' : 'Qoralama'}
+                                </span>
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => openQuestionDialog(test)}
+                              >
+                                <FileQuestion className="h-4 w-4 mr-1" />
+                                Savollar
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                onClick={() => openEditDialog(test)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                onClick={() => handleDelete(test.id)}
+                                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Users Tab - Super Admin Only */}
+            {isSuperAdmin && (
+              <TabsContent value="users">
+                <Card className="card-premium animate-fade-up">
+                  <CardHeader>
+                    <CardTitle className="font-serif flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Foydalanuvchilarni boshqarish
+                    </CardTitle>
+                    <CardDescription>Foydalanuvchilarni bloklash va rollarini o'zgartirish</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Foydalanuvchi</TableHead>
+                          <TableHead>Rol</TableHead>
+                          <TableHead>Holat</TableHead>
+                          <TableHead>Ro'yxatdan o'tgan</TableHead>
+                          <TableHead className="text-right">Amallar</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {users.map((userProfile) => (
+                          <TableRow key={userProfile.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold">
+                                  {userProfile.full_name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-medium">{userProfile.full_name}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>{getRoleBadge(userProfile.role || 'user')}</TableCell>
+                            <TableCell>
+                              {userProfile.is_blocked ? (
+                                <Badge variant="destructive"><Ban className="h-3 w-3 mr-1" />Bloklangan</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-success border-success"><UserCheck className="h-3 w-3 mr-1" />Faol</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {new Date(userProfile.created_at).toLocaleDateString('uz-UZ')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {userProfile.role !== 'super_admin' && (
+                                  <>
+                                    <Select
+                                      value={userProfile.role || 'user'}
+                                      onValueChange={(value) => handleChangeUserRole(userProfile.user_id, value as 'admin' | 'user')}
+                                    >
+                                      <SelectTrigger className="w-32">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="user">Foydalanuvchi</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      variant={userProfile.is_blocked ? "outline" : "destructive"}
+                                      size="sm"
+                                      onClick={() => handleToggleUserBlock(userProfile)}
+                                    >
+                                      {userProfile.is_blocked ? (
+                                        <><UserCheck className="h-4 w-4 mr-1" />Blokdan chiqarish</>
+                                      ) : (
+                                        <><Ban className="h-4 w-4 mr-1" />Bloklash</>
+                                      )}
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+          </Tabs>
         </div>
 
         {/* Question Dialog */}

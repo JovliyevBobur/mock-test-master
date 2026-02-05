@@ -293,7 +293,16 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "admin" | "user"
-      subject: "math" | "physics" | "english" | "history" | "russian" | "uzbek"
+      subject:
+        | "math"
+        | "physics"
+        | "english"
+        | "history"
+        | "russian"
+        | "uzbek"
+        | "chemistry"
+        | "biology"
+        | "informatics"
       user_role: "user" | "admin"
     }
     CompositeTypes: {
@@ -423,7 +432,17 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "admin", "user"],
-      subject: ["math", "physics", "english", "history", "russian", "uzbek"],
+      subject: [
+        "math",
+        "physics",
+        "english",
+        "history",
+        "russian",
+        "uzbek",
+        "chemistry",
+        "biology",
+        "informatics",
+      ],
       user_role: ["user", "admin"],
     },
   },

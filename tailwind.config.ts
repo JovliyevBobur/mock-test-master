@@ -67,6 +67,9 @@ export default {
         subject: {
           math: "hsl(var(--math))",
           physics: "hsl(var(--physics))",
+           chemistry: "hsl(var(--chemistry))",
+           biology: "hsl(var(--biology))",
+           informatics: "hsl(var(--informatics))",
           english: "hsl(var(--english))",
           history: "hsl(var(--history))",
           russian: "hsl(var(--russian))",

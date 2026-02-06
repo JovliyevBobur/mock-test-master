@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
-import { FloatingShapes } from '@/components/ui/FloatingShapes';
+import { CosmicBackground } from '@/components/ui/CosmicBackground';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getSubjectById, SUBJECTS } from '@/lib/constants';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, FileQuestion, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Clock, FileQuestion, ArrowRight, ArrowLeft, Sparkles, Search, Lock, BookOpen, Users, Award, TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Test {
   id: string;
@@ -22,9 +24,12 @@ interface Test {
 export default function Subjects() {
   const { subjectId } = useParams<{ subjectId: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [testCounts, setTestCounts] = useState<Record<string, number>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState({ totalTests: 0, totalUsers: 0, totalAttempts: 0 });
 
   const subject = subjectId ? getSubjectById(subjectId) : null;
 
@@ -33,8 +38,23 @@ export default function Subjects() {
       fetchTests();
     } else {
       fetchTestCounts();
+      fetchStats();
     }
   }, [subjectId]);
+
+  const fetchStats = async () => {
+    const [testsRes, usersRes, attemptsRes] = await Promise.all([
+      supabase.from('tests').select('*', { count: 'exact', head: true }).eq('is_published', true),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }),
+      supabase.from('test_attempts').select('*', { count: 'exact', head: true }).not('completed_at', 'is', null),
+    ]);
+
+    setStats({
+      totalTests: testsRes.count || 0,
+      totalUsers: usersRes.count || 0,
+      totalAttempts: attemptsRes.count || 0,
+    });
+  };
 
   const fetchTestCounts = async () => {
     const { data, error } = await supabase
@@ -80,49 +100,141 @@ export default function Subjects() {
     setLoading(false);
   };
 
-  // Subject list view
+  const filteredSubjects = SUBJECTS.filter(sub => 
+    sub.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleStartTest = (testId: string) => {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: `/test/${testId}` } } });
+      return;
+    }
+    navigate(`/test/${testId}`);
+  };
+
+  // Subject list view - Main Subjects Panel
   if (!subjectId) {
     return (
       <Layout>
+        <CosmicBackground />
         <PageTransition>
-          <div className="relative min-h-[80vh] section-premium overflow-hidden">
-            <FloatingShapes />
-            
-            <div className="container relative py-16">
-              <div className="text-center mb-16">
-                <p className="text-sm font-medium tracking-elegant text-accent uppercase mb-3 animate-fade-up">Fanlar</p>
-                <h1 className="font-serif text-4xl md:text-5xl font-semibold mb-4 animate-fade-up delay-100">
-                  O'zingizga kerakli fanni tanlang
+          <div className="relative min-h-[90vh] overflow-hidden">
+            <div className="container relative py-12">
+              {/* Header Section */}
+              <div className="text-center mb-12">
+                <div className="inline-flex items-center gap-2 rounded-full bg-accent/20 border border-accent/30 px-5 py-2.5 text-sm font-medium text-accent mb-6 animate-fade-up backdrop-blur-sm">
+                  <BookOpen className="h-4 w-4" />
+                  <span>Fanlar markazi</span>
+                </div>
+                <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold mb-6 animate-fade-up delay-100">
+                  O'zingizga kerakli 
+                  <span className="text-gradient-gold"> fanni</span> tanlang
                 </h1>
-                <p className="text-muted-foreground max-w-2xl mx-auto animate-fade-up delay-200">
-                  6 ta fan bo'yicha professional testlar. Har bir fan bo'yicha minglab savollar.
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-up delay-200">
+                  {SUBJECTS.length} ta fan bo'yicha professional testlar. Test ishlash uchun ro'yxatdan o'tishingiz kerak.
                 </p>
               </div>
 
+              {/* Stats Cards */}
+              <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto mb-12 animate-fade-up delay-300">
+                {[
+                  { icon: BookOpen, value: stats.totalTests, label: 'Testlar' },
+                  { icon: Users, value: stats.totalUsers, label: 'Foydalanuvchilar' },
+                  { icon: TrendingUp, value: stats.totalAttempts, label: 'Urinishlar' },
+                ].map((stat, idx) => (
+                  <Card key={idx} className="card-premium text-center">
+                    <CardContent className="p-4">
+                      <stat.icon className="h-6 w-6 text-accent mx-auto mb-2" />
+                      <p className="font-serif text-2xl font-bold">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Search */}
+              <div className="max-w-md mx-auto mb-10 animate-fade-up delay-400">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input 
+                    placeholder="Fan nomini qidirish..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-12 pl-12 rounded-xl border-2 focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Auth Warning */}
+              {!user && (
+                <div className="max-w-2xl mx-auto mb-10 animate-fade-up delay-500">
+                  <Card className="border-2 border-accent/30 bg-accent/5">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 rounded-xl bg-accent/10">
+                          <Lock className="h-6 w-6 text-accent" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-serif text-lg font-semibold mb-1">Test ishlash uchun ro'yxatdan o'ting</h3>
+                          <p className="text-muted-foreground text-sm mb-4">
+                            Fanlarni ko'rishingiz mumkin, lekin test ishlash uchun tizimga kirishingiz kerak.
+                          </p>
+                          <div className="flex gap-3">
+                            <Link to="/register">
+                              <Button variant="premium" size="sm">
+                                <Sparkles className="h-4 w-4 mr-2" />
+                                Ro'yxatdan o'tish
+                              </Button>
+                            </Link>
+                            <Link to="/login">
+                              <Button variant="outline" size="sm">
+                                Kirish
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Subject Grid */}
               {loading ? (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
                     <Card key={i} className="border-2">
                       <CardContent className="p-8">
-                        <Skeleton className="h-16 w-16 rounded-xl mx-auto mb-4" />
+                        <Skeleton className="h-20 w-20 rounded-2xl mx-auto mb-4" />
                         <Skeleton className="h-6 w-32 mx-auto mb-2" />
                         <Skeleton className="h-4 w-24 mx-auto" />
                       </CardContent>
                     </Card>
                   ))}
                 </div>
+              ) : filteredSubjects.length === 0 ? (
+                <Card className="text-center py-16 card-premium">
+                  <CardContent>
+                    <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="font-serif text-xl font-semibold mb-2">Natija topilmadi</h3>
+                    <p className="text-muted-foreground">"{searchQuery}" bo'yicha fan topilmadi</p>
+                  </CardContent>
+                </Card>
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {SUBJECTS.map((sub, index) => (
+                  {filteredSubjects.map((sub, index) => (
                     <Link 
                       key={sub.id} 
                       to={`/subjects/${sub.id}`}
                       className="animate-fade-up"
-                      style={{ animationDelay: `${index * 100}ms` }}
+                      style={{ animationDelay: `${(index + 5) * 100}ms` }}
                     >
-                      <Card className="group card-premium rounded-xl overflow-hidden cursor-pointer h-full">
+                      <Card className={cn(
+                        "group card-premium rounded-2xl overflow-hidden cursor-pointer h-full",
+                        "hover:border-accent/50 transition-all duration-500"
+                      )}>
                         <CardContent className="p-8 text-center">
-                          <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10 mx-auto mb-6 text-5xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
+                          <div className="flex items-center justify-center w-24 h-24 rounded-2xl bg-primary/10 mx-auto mb-6 text-6xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
                             {sub.icon}
                           </div>
                           <h3 className="font-serif text-2xl font-semibold mb-2">{sub.name}</h3>
@@ -130,7 +242,7 @@ export default function Subjects() {
                             {testCounts[sub.id] || 0} ta test mavjud
                           </p>
                           <div className="flex items-center justify-center gap-2 text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <span>Ko'rish</span>
+                            <span>Testlarni ko'rish</span>
                             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                           </div>
                         </CardContent>
@@ -149,10 +261,9 @@ export default function Subjects() {
   // Subject detail view
   return (
     <Layout>
+      <CosmicBackground />
       <PageTransition>
-        <div className="relative min-h-[80vh] section-premium overflow-hidden">
-          <FloatingShapes />
-          
+        <div className="relative min-h-[80vh] overflow-hidden">
           <div className="container relative py-12">
             <Link 
               to="/subjects" 
@@ -173,6 +284,35 @@ export default function Subjects() {
                 </p>
               </div>
             </div>
+
+            {/* Auth Warning in Subject Detail */}
+            {!user && (
+              <Card className="border-2 border-accent/30 bg-accent/5 mb-8 animate-fade-up delay-100">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-accent/10">
+                        <Lock className="h-6 w-6 text-accent" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif text-lg font-semibold">Test ishlash uchun ro'yxatdan o'ting</h3>
+                        <p className="text-muted-foreground text-sm">
+                          Testlarni ko'rishingiz mumkin, lekin ishlash uchun tizimga kirishingiz kerak.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Link to="/register">
+                        <Button variant="premium">
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Ro'yxatdan o'tish
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {loading ? (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -214,7 +354,7 @@ export default function Subjects() {
                   <Card 
                     key={test.id} 
                     className="group card-premium rounded-xl animate-fade-up"
-                    style={{ animationDelay: `${index * 100}ms` }}
+                    style={{ animationDelay: `${(index + 2) * 100}ms` }}
                   >
                     <CardHeader>
                       <CardTitle className="font-serif text-xl">{test.title}</CardTitle>
@@ -234,20 +374,23 @@ export default function Subjects() {
                         </div>
                       </div>
                       
-                      {user ? (
-                        <Link to={`/test/${test.id}`}>
-                          <Button className="w-full group/btn" variant="premium">
+                      <Button 
+                        className="w-full group/btn" 
+                        variant={user ? "premium" : "outline"}
+                        onClick={() => handleStartTest(test.id)}
+                      >
+                        {user ? (
+                          <>
                             <Sparkles className="h-4 w-4 mr-2 transition-transform group-hover/btn:rotate-12" />
                             Testni boshlash
-                          </Button>
-                        </Link>
-                      ) : (
-                        <Link to="/login">
-                          <Button variant="outline" className="w-full">
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="h-4 w-4 mr-2" />
                             Kirish kerak
-                          </Button>
-                        </Link>
-                      )}
+                          </>
+                        )}
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}

@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Loader2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { BookOpen, Loader2, AlertCircle, Mail, CheckCircle } from 'lucide-react';
 import { z } from 'zod';
 
 const registerSchema = z.object({
@@ -22,15 +21,14 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
   
   const { signUp } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validate inputs
     const validation = registerSchema.safeParse({ fullName, email, password });
     if (!validation.success) {
       setError(validation.error.errors[0].message);
@@ -55,9 +53,38 @@ export default function Register() {
       return;
     }
 
-    toast.success('Muvaffaqiyatli ro\'yxatdan o\'tdingiz!');
-    navigate('/dashboard');
+    setEmailSent(true);
   };
+
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/20 to-background p-4">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_80%,hsl(var(--accent)/0.08),transparent_50%)]" />
+        
+        <Card className="relative w-full max-w-md shadow-xl border-border/50">
+          <CardContent className="pt-8 pb-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-success/10 flex items-center justify-center">
+              <Mail className="h-8 w-8 text-success" />
+            </div>
+            <h2 className="font-serif text-2xl font-bold mb-3">Emailingizni tekshiring!</h2>
+            <p className="text-muted-foreground mb-6">
+              <span className="font-medium text-foreground">{email}</span> manziliga tasdiqlash havolasi yuborildi. 
+              Hisobingizni faollashtirish uchun emaildagi havolani bosing.
+            </p>
+            <div className="flex items-center justify-center gap-2 p-4 rounded-lg bg-muted/50 mb-6">
+              <CheckCircle className="h-5 w-5 text-success" />
+              <span className="text-sm">Spam papkasini ham tekshiring</span>
+            </div>
+            <Link to="/login">
+              <Button variant="outline" className="w-full">
+                Kirish sahifasiga qaytish
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/20 to-background p-4">
@@ -71,7 +98,7 @@ export default function Register() {
             </div>
             <span className="gradient-text">MockTest Pro</span>
           </Link>
-          <CardTitle className="font-display text-2xl">Ro'yxatdan o'tish</CardTitle>
+          <CardTitle className="font-serif text-2xl">Ro'yxatdan o'tish</CardTitle>
           <CardDescription>
             Yangi hisob yarating va testlarni boshlang
           </CardDescription>

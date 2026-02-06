@@ -1,9 +1,9 @@
 export const SUBJECTS = [
   { id: 'math', name: 'Matematika', icon: '📐', color: 'subject-math' },
   { id: 'physics', name: 'Fizika', icon: '⚛️', color: 'subject-physics' },
-   { id: 'chemistry', name: 'Kimyo', icon: '🧪', color: 'subject-chemistry' },
-   { id: 'biology', name: 'Biologiya', icon: '🧬', color: 'subject-biology' },
-   { id: 'informatics', name: 'Informatika', icon: '💻', color: 'subject-informatics' },
+  { id: 'chemistry', name: 'Kimyo', icon: '🧪', color: 'subject-chemistry' },
+  { id: 'biology', name: 'Biologiya', icon: '🧬', color: 'subject-biology' },
+  { id: 'informatics', name: 'Informatika', icon: '💻', color: 'subject-informatics' },
   { id: 'english', name: 'Ingliz tili', icon: '🇬🇧', color: 'subject-english' },
   { id: 'history', name: 'Tarix', icon: '📜', color: 'subject-history' },
   { id: 'russian', name: 'Rus tili', icon: '🇷🇺', color: 'subject-russian' },

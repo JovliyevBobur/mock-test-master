@@ -11,8 +11,8 @@ export default function Landing() {
   const features = [
     {
       icon: BookOpen,
-      title: "6 ta fan bo'yicha testlar",
-      description: "Matematika, Fizika, Ingliz tili, Tarix, Rus tili va Ona tili",
+      title: "9 ta fan bo'yicha testlar",
+      description: "Matematika, Fizika, Kimyo, Biologiya, Informatika va boshqalar",
     },
     {
       icon: Clock,

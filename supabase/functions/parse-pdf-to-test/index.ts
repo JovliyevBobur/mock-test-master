@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4"
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 }
 
 interface ParsedQuestion {
@@ -10,12 +11,7 @@ interface ParsedQuestion {
     choice_text: string
     is_correct: boolean
   }[]
-}
-
-interface ParsedTest {
-  title: string
-  description: string
-  questions: ParsedQuestion[]
+  explanation?: string
 }
 
 Deno.serve(async (req) => {
@@ -24,21 +20,38 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { pdfContent, subject, title, duration_minutes } = await req.json()
+    const formData = await req.formData()
+    const file = formData.get("file") as File | null
+    const subject = formData.get("subject") as string
+    const title = formData.get("title") as string
+    const duration_minutes = parseInt(formData.get("duration_minutes") as string || "30")
+    const access_code = formData.get("access_code") as string | null
 
-    if (!pdfContent || !subject || !title) {
+    if (!file || !subject || !title) {
       return new Response(
-        JSON.stringify({ error: "pdfContent, subject va title majburiy" }),
+        JSON.stringify({ error: "file, subject va title majburiy" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
+
+    // Check if file is PDF
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      return new Response(
+        JSON.stringify({ error: "Faqat PDF fayl yuklash mumkin" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Read PDF content as base64
+    const arrayBuffer = await file.arrayBuffer()
+    const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY topilmadi")
     }
 
-    // Use Lovable AI to parse the PDF content
+    // Use Lovable AI with vision to parse PDF
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -51,7 +64,7 @@ Deno.serve(async (req) => {
           {
             role: "system",
             content: `Sen test savollarini tahlil qiluvchi AI san. 
-PDF matnidan test savollarini ajratib ol va quyidagi JSON formatda qaytar:
+PDF fayldan test savollarini ajratib ol va quyidagi JSON formatda qaytar:
 {
   "questions": [
     {
@@ -61,7 +74,8 @@ PDF matnidan test savollarini ajratib ol va quyidagi JSON formatda qaytar:
         { "choice_text": "B variant", "is_correct": true },
         { "choice_text": "C variant", "is_correct": false },
         { "choice_text": "D variant", "is_correct": false }
-      ]
+      ],
+      "explanation": "Nima uchun bu javob to'g'ri ekanligi haqida qisqacha tushuntirish"
     }
   ]
 }
@@ -69,22 +83,48 @@ PDF matnidan test savollarini ajratib ol va quyidagi JSON formatda qaytar:
 MUHIM QOIDALAR:
 1. Har bir savolda kamida 2 ta, ko'pi bilan 4 ta javob varianti bo'lsin
 2. Faqat BITTA to'g'ri javob bo'lsin (is_correct: true)
-3. Agar to'g'ri javob aniq bo'lmasa, birinchi variantni to'g'ri deb belgilab, izoh qoldirma
-4. Faqat toza JSON qaytar, boshqa hech narsa yo'q
-5. Savollarni o'zbek tilida yoki asl tilda saqlang`
+3. To'g'ri javobni aniq belgilang - odatda (*) yoki boshqa belgilar bilan ko'rsatilgan bo'ladi
+4. Agar to'g'ri javob aniq bo'lmasa, birinchi variantni to'g'ri deb belgilang
+5. Faqat toza JSON qaytar, boshqa hech narsa yo'q
+6. Savollarni asl tilda saqlang
+7. Har bir savol uchun explanation yozing - bu noto'g'ri javob bergan foydalanuvchilarga ko'rsatiladi`
           },
           {
             role: "user",
-            content: `Quyidagi PDF matnidan test savollarini ajratib ber:\n\n${pdfContent}`
+            content: [
+              {
+                type: "text",
+                text: "Quyidagi PDF fayldan test savollarini ajratib ber. Har bir savol uchun to'g'ri javobni aniq belgilab, tushuntirish ham yoz:"
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${base64Content}`
+                }
+              }
+            ]
           }
         ],
         temperature: 0.1,
-        max_tokens: 8000,
+        max_tokens: 16000,
       }),
     })
 
     if (!aiResponse.ok) {
+      if (aiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Juda ko'p so'rov yuborildi. Biroz kuting." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+      if (aiResponse.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Lovable AI krediti tugadi." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
       const errorText = await aiResponse.text()
+      console.error("AI error:", aiResponse.status, errorText)
       throw new Error(`AI xatolik: ${errorText}`)
     }
 
@@ -94,7 +134,6 @@ MUHIM QOIDALAR:
     // Parse JSON from AI response
     let parsedQuestions: ParsedQuestion[] = []
     try {
-      // Try to extract JSON from the response
       const jsonMatch = aiContent.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0])
@@ -102,6 +141,7 @@ MUHIM QOIDALAR:
       }
     } catch (parseError) {
       console.error("JSON parsing error:", parseError)
+      console.error("AI content:", aiContent)
       throw new Error("AI javobini tahlil qilib bo'lmadi")
     }
 
@@ -136,16 +176,16 @@ MUHIM QOIDALAR:
       )
     }
 
-    // Check if user is admin or super_admin
+    // Check if user is super_admin (only super admin can upload PDF)
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
       .single()
 
-    if (!roleData || (roleData.role !== "admin" && roleData.role !== "super_admin")) {
+    if (!roleData || roleData.role !== "super_admin") {
       return new Response(
-        JSON.stringify({ error: "Bu amal uchun admin huquqi kerak" }),
+        JSON.stringify({ error: "Bu amal uchun Super Admin huquqi kerak" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -157,9 +197,10 @@ MUHIM QOIDALAR:
         title: title,
         description: `PDF dan import qilingan - ${parsedQuestions.length} ta savol`,
         subject: subject,
-        duration_minutes: duration_minutes || 30,
+        duration_minutes: duration_minutes,
         created_by: user.id,
         is_published: false,
+        access_code: access_code || null,
       })
       .select()
       .single()

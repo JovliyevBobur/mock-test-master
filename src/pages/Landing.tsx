@@ -3,9 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
 import { CosmicBackground } from '@/components/ui/CosmicBackground';
-import { SubjectCard } from '@/components/SubjectCard';
-import { SUBJECTS } from '@/lib/constants';
-import { CheckCircle, BookOpen, Trophy, Clock, Users, TrendingUp, Star, Sparkles, Rocket, ArrowRight, Award } from 'lucide-react';
+import { CheckCircle, BookOpen, Trophy, Clock, Users, TrendingUp, Rocket, ArrowRight, Award } from 'lucide-react';
 
 export default function Landing() {
   const features = [
@@ -39,14 +37,8 @@ export default function Landing() {
         <section className="relative min-h-[90vh] flex items-center overflow-hidden">
           <div className="container relative py-20">
             <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 rounded-full bg-accent/20 border border-accent/30 px-5 py-2.5 text-sm font-medium text-accent mb-8 animate-fade-up backdrop-blur-sm">
-                <Sparkles className="h-4 w-4" />
-                <span>O'zbekiston bo'ylab 10,000+ foydalanuvchi</span>
-              </div>
-              
               {/* Heading */}
-              <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-8 animate-fade-up" style={{ animationDelay: '0.1s' }}>
+              <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-8 animate-fade-up">
                 Imtihonlarga 
                 <span className="block mt-2">
                   <span className="text-gradient-gold">professional</span>
@@ -55,13 +47,13 @@ export default function Landing() {
               </h1>
               
               {/* Description */}
-              <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-12 animate-fade-up leading-relaxed" style={{ animationDelay: '0.2s' }}>
+              <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-12 animate-fade-up leading-relaxed" style={{ animationDelay: '0.1s' }}>
                 MockTest Pro bilan real imtihon sharoitida o'zingizni sinab ko'ring. 
                 Minglab savollar, tez natijalar, va kosmik tajriba.
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 animate-fade-up" style={{ animationDelay: '0.3s' }}>
+              <div className="flex flex-col sm:flex-row gap-4 animate-fade-up" style={{ animationDelay: '0.2s' }}>
                 <Link to="/register">
                   <Button variant="premium" size="xl" className="group">
                     <Rocket className="h-5 w-5 mr-2 group-hover:animate-bounce" />
@@ -76,21 +68,22 @@ export default function Landing() {
                 </Link>
               </div>
 
-              {/* Stats */}
-              <div className="flex flex-wrap justify-center gap-8 mt-16 animate-fade-up" style={{ animationDelay: '0.4s' }}>
-                {[
-                  { icon: Users, label: "10,000+", sublabel: "foydalanuvchi" },
-                  { icon: BookOpen, label: "5,000+", sublabel: "savollar" },
-                  { icon: Star, label: "98%", sublabel: "mamnuniyat" },
-                ].map((stat, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-card/50 backdrop-blur-sm border">
-                    <stat.icon className="h-6 w-6 text-accent" />
-                    <div className="text-left">
-                      <p className="font-serif text-xl font-bold">{stat.label}</p>
-                      <p className="text-xs text-muted-foreground">{stat.sublabel}</p>
-                    </div>
+              {/* Stats - Only two cards like in reference image */}
+              <div className="flex flex-wrap justify-center gap-6 mt-16 animate-fade-up" style={{ animationDelay: '0.3s' }}>
+                <div className="flex items-center gap-4 px-8 py-4 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/60">
+                  <Users className="h-7 w-7 text-accent" />
+                  <div className="text-left">
+                    <p className="font-serif text-2xl font-bold">10,000+</p>
+                    <p className="text-sm text-muted-foreground">foydalanuvchi</p>
                   </div>
-                ))}
+                </div>
+                <div className="flex items-center gap-4 px-8 py-4 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/60">
+                  <BookOpen className="h-7 w-7 text-accent" />
+                  <div className="text-left">
+                    <p className="font-serif text-2xl font-bold">5,000+</p>
+                    <p className="text-sm text-muted-foreground">savollar</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -121,32 +114,6 @@ export default function Landing() {
                   </div>
                   <h3 className="font-serif text-xl font-bold mb-3">{feature.title}</h3>
                   <p className="text-muted-foreground">{feature.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Subjects Section */}
-        <section className="py-24 relative">
-          <div className="container">
-            <div className="text-center mb-16">
-              <h2 className="font-serif text-4xl md:text-5xl font-bold mb-6 animate-fade-up">
-                Barcha fanlar <span className="text-gradient-gold">bir joyda</span>
-              </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-up delay-100">
-                O'zingizga kerakli fanni tanlang va darhol testni boshlang
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {SUBJECTS.map((subject, idx) => (
-                <div key={subject.id} style={{ animationDelay: `${idx * 0.1}s` }} className="animate-fade-up">
-                  <SubjectCard
-                    id={subject.id}
-                    name={subject.name}
-                    icon={subject.icon}
-                  />
                 </div>
               ))}
             </div>

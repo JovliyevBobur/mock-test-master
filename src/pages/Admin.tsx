@@ -20,7 +20,7 @@ import { SUBJECTS, getSubjectById } from '@/lib/constants';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,
-  Upload, FileText, Ban, UserCheck, Star, BarChart3, Target, Award
+  Upload, FileText, Ban, UserCheck, BarChart3, Target, Award, Lock, Eye, EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ interface Test {
   subject: string;
   duration_minutes: number;
   is_published: boolean;
+  access_code: string | null;
   question_count?: number;
   attempt_count?: number;
   avg_score?: number;
@@ -84,6 +85,7 @@ export default function Admin() {
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({ tests: 0, questions: 0, users: 0, attempts: 0, avgScore: 0 });
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showAccessCode, setShowAccessCode] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -91,12 +93,14 @@ export default function Admin() {
   const [description, setDescription] = useState('');
   const [subject, setSubject] = useState('math');
   const [duration, setDuration] = useState(30);
+  const [accessCode, setAccessCode] = useState('');
 
   // PDF import state
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfSubject, setPdfSubject] = useState('math');
   const [pdfDuration, setPdfDuration] = useState(30);
-  const [pdfContent, setPdfContent] = useState('');
+  const [pdfAccessCode, setPdfAccessCode] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
   // Question form state
@@ -218,7 +222,7 @@ export default function Admin() {
   const fetchTests = async () => {
     const { data } = await supabase
       .from('tests')
-      .select('id, title, description, subject, duration_minutes, is_published')
+      .select('id, title, description, subject, duration_minutes, is_published, access_code')
       .order('created_at', { ascending: false });
 
     if (data) {
@@ -285,6 +289,7 @@ export default function Admin() {
         description: description.trim() || null,
         subject: subject as any,
         duration_minutes: duration,
+        access_code: accessCode.trim() || null,
       }).eq('id', editingTest.id);
       toast.success('Test yangilandi');
     } else {
@@ -294,6 +299,7 @@ export default function Admin() {
         subject: subject as any,
         duration_minutes: duration,
         created_by: user!.id,
+        access_code: accessCode.trim() || null,
       });
       toast.success('Test yaratildi');
     }
@@ -306,25 +312,33 @@ export default function Admin() {
   };
 
   const handlePdfImport = async () => {
-    if (!pdfTitle.trim() || !pdfContent.trim()) {
-      toast.error('Barcha maydonlarni to\'ldiring');
+    if (!pdfTitle.trim() || !pdfFile) {
+      toast.error('Test nomini va PDF faylni tanlang');
+      return;
+    }
+
+    if (!pdfFile.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Faqat PDF fayl yuklash mumkin');
       return;
     }
 
     setImporting(true);
     try {
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      formData.append('title', pdfTitle);
+      formData.append('subject', pdfSubject);
+      formData.append('duration_minutes', pdfDuration.toString());
+      if (pdfAccessCode.trim()) {
+        formData.append('access_code', pdfAccessCode.trim());
+      }
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf-to-test`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({
-          pdfContent: pdfContent,
-          subject: pdfSubject,
-          title: pdfTitle,
-          duration_minutes: pdfDuration,
-        }),
+        body: formData,
       });
 
       const data = await response.json();
@@ -349,15 +363,16 @@ export default function Admin() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setPdfContent(text);
-      if (!pdfTitle) {
-        setPdfTitle(file.name.replace(/\.[^/.]+$/, ''));
-      }
-    };
-    reader.readAsText(file);
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Faqat PDF fayl yuklash mumkin');
+      e.target.value = '';
+      return;
+    }
+
+    setPdfFile(file);
+    if (!pdfTitle) {
+      setPdfTitle(file.name.replace(/\.pdf$/i, ''));
+    }
   };
 
   const handleAddQuestion = async () => {
@@ -457,10 +472,8 @@ export default function Admin() {
   };
 
   const handleChangeUserRole = async (userId: string, newRole: 'admin' | 'user') => {
-    // First delete existing role
     await supabase.from('user_roles').delete().eq('user_id', userId);
     
-    // Insert new role
     const { error } = await supabase
       .from('user_roles')
       .insert({ user_id: userId, role: newRole });
@@ -480,6 +493,7 @@ export default function Admin() {
     setDescription(test.description || '');
     setSubject(test.subject);
     setDuration(test.duration_minutes);
+    setAccessCode(test.access_code || '');
     setDialogOpen(true);
   };
 
@@ -495,13 +509,18 @@ export default function Admin() {
     setDescription('');
     setSubject('math');
     setDuration(30);
+    setAccessCode('');
   };
 
   const resetPdfForm = () => {
     setPdfTitle('');
     setPdfSubject('math');
     setPdfDuration(30);
-    setPdfContent('');
+    setPdfAccessCode('');
+    setPdfFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const resetQuestionForm = () => {
@@ -538,6 +557,10 @@ export default function Admin() {
       default:
         return <Badge variant="outline">Foydalanuvchi</Badge>;
     }
+  };
+
+  const toggleShowAccessCode = (testId: string) => {
+    setShowAccessCode(prev => ({ ...prev, [testId]: !prev[testId] }));
   };
 
   if (!isAdmin) {
@@ -580,98 +603,108 @@ export default function Admin() {
             </div>
             
             <div className="flex gap-3">
-              {/* PDF Import Dialog */}
-              <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="lg">
-                    <Upload className="h-5 w-5 mr-2" />
-                    PDF Import
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="font-serif text-xl flex items-center gap-2">
-                      <FileText className="h-6 w-6" />
-                      PDF/Matndan test import qilish
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <Label>Test nomi</Label>
-                      <Input 
-                        value={pdfTitle} 
-                        onChange={(e) => setPdfTitle(e.target.value)} 
-                        placeholder="Masalan: Matematika - Algebra testlari"
-                        className="h-11"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+              {/* PDF Import Dialog - Only for Super Admin */}
+              {isSuperAdmin && (
+                <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="lg">
+                      <Upload className="h-5 w-5 mr-2" />
+                      PDF Import
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="font-serif text-xl flex items-center gap-2">
+                        <FileText className="h-6 w-6" />
+                        PDF dan test import qilish
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
                       <div className="space-y-2">
-                        <Label>Fan</Label>
-                        <Select value={pdfSubject} onValueChange={setPdfSubject}>
-                          <SelectTrigger className="h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SUBJECTS.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.icon} {s.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Vaqt (daqiqa)</Label>
+                        <Label>Test nomi</Label>
                         <Input 
-                          type="number" 
-                          value={pdfDuration} 
-                          onChange={(e) => setPdfDuration(Number(e.target.value))}
-                          min={5}
-                          max={180}
+                          value={pdfTitle} 
+                          onChange={(e) => setPdfTitle(e.target.value)} 
+                          placeholder="Masalan: Matematika - Algebra testlari"
                           className="h-11"
                         />
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Fan</Label>
+                          <Select value={pdfSubject} onValueChange={setPdfSubject}>
+                            <SelectTrigger className="h-11">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SUBJECTS.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.icon} {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Vaqt (daqiqa)</Label>
+                          <Input 
+                            type="number" 
+                            value={pdfDuration} 
+                            onChange={(e) => setPdfDuration(Number(e.target.value))}
+                            min={5}
+                            max={180}
+                            className="h-11"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Lock className="h-4 w-4" />
+                          Kirish kodi (ixtiyoriy - yopiq test uchun)
+                        </Label>
+                        <Input 
+                          value={pdfAccessCode} 
+                          onChange={(e) => setPdfAccessCode(e.target.value)}
+                          placeholder="Masalan: MATH2024"
+                          className="h-11"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Agar kod kiritilsa, faqat shu kodni bilgan foydalanuvchilar testni ishlaydi
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>PDF fayl yuklash</Label>
+                        <Input 
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleFileUpload}
+                          className="h-11"
+                        />
+                        {pdfFile && (
+                          <p className="text-sm text-success flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4" />
+                            {pdfFile.name} tanlandi
+                          </p>
+                        )}
+                      </div>
+                      <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
+                        <p className="text-sm text-muted-foreground">
+                          <strong>AI avtomatik tahlil qiladi:</strong> PDF dagi savollar, javob variantlari va to'g'ri javoblarni aniqlaydi. 
+                          Noto'g'ri javob bergan foydalanuvchilarga tushuntirish ko'rsatiladi.
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Matn fayli yuklash</Label>
-                      <Input 
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".txt,.md"
-                        onChange={handleFileUpload}
-                        className="h-11"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Yoki test matnini kiriting</Label>
-                      <Textarea 
-                        value={pdfContent} 
-                        onChange={(e) => setPdfContent(e.target.value)}
-                        placeholder={`Test savollarini quyidagi formatda kiriting:
-
-1. Savol matni?
-A) Javob varianti 1
-B) To'g'ri javob (*)
-C) Javob varianti 3
-D) Javob varianti 4
-
-2. Keyingi savol?
-...`}
-                        rows={10}
-                        className="font-mono text-sm"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter className="mt-6">
-                    <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>Bekor</Button>
-                    <Button variant="premium" onClick={handlePdfImport} disabled={importing}>
-                      {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                      Import qilish
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    <DialogFooter className="mt-6">
+                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>Bekor</Button>
+                      <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile}>
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                        Import qilish
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               {/* New Test Dialog */}
               <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
@@ -734,6 +767,23 @@ D) Javob varianti 4
                         />
                       </div>
                     </div>
+                    {isSuperAdmin && (
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Lock className="h-4 w-4" />
+                          Kirish kodi (ixtiyoriy)
+                        </Label>
+                        <Input 
+                          value={accessCode} 
+                          onChange={(e) => setAccessCode(e.target.value)}
+                          placeholder="Masalan: MATH2024"
+                          className="h-11"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Yopiq test yaratish uchun kod kiriting
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <DialogFooter className="mt-6">
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>Bekor</Button>
@@ -747,7 +797,7 @@ D) Javob varianti 4
             </div>
           </div>
 
-          {/* Tabs for Super Admin */}
+          {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className={cn("grid w-full", isSuperAdmin ? "grid-cols-3" : "grid-cols-2")}>
               <TabsTrigger value="dashboard" className="flex items-center gap-2">
@@ -768,7 +818,6 @@ D) Javob varianti 4
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" className="space-y-6">
-              {/* Stats */}
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {[
                   { label: 'Testlar', value: stats.tests, icon: BookOpen, gradient: 'from-blue-500 to-indigo-600' },
@@ -793,7 +842,6 @@ D) Javob varianti 4
                 ))}
               </div>
 
-              {/* Top Tests */}
               <Card className="card-premium animate-fade-up delay-500">
                 <CardHeader>
                   <CardTitle className="font-serif flex items-center gap-2">
@@ -876,13 +924,35 @@ D) Javob varianti 4
                           >
                             <div className="text-4xl">{sub?.icon}</div>
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-serif font-semibold text-lg truncate">{test.title}</h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-serif font-semibold text-lg truncate">{test.title}</h3>
+                                {test.access_code && (
+                                  <Badge variant="outline" className="flex items-center gap-1">
+                                    <Lock className="h-3 w-3" />
+                                    Kodli
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground">
                                 {sub?.name} • {test.question_count} savol • {test.duration_minutes} daqiqa
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {test.attempt_count} urinish • O'rtacha: {test.avg_score}%
                               </p>
+                              {test.access_code && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-muted-foreground">Kod:</span>
+                                  <code className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
+                                    {showAccessCode[test.id] ? test.access_code : '••••••'}
+                                  </code>
+                                  <button 
+                                    onClick={() => toggleShowAccessCode(test.id)}
+                                    className="text-muted-foreground hover:text-foreground"
+                                  >
+                                    {showAccessCode[test.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
@@ -930,7 +1000,7 @@ D) Javob varianti 4
               </Card>
             </TabsContent>
 
-            {/* Users Tab - Super Admin Only */}
+            {/* Users Tab */}
             {isSuperAdmin && (
               <TabsContent value="users">
                 <Card className="card-premium animate-fade-up">

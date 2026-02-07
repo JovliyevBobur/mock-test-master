@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
+import { PageTransition } from '@/components/PageTransition';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getSubjectById } from '@/lib/constants';
-import { Loader2, Trophy, Clock, CheckCircle, XCircle, RotateCcw, Home, Share2 } from 'lucide-react';
+import { Loader2, Trophy, Clock, CheckCircle, XCircle, RotateCcw, Home, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import confetti from 'canvas-confetti';
 
@@ -47,6 +48,7 @@ export default function Results() {
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAnswers, setShowAnswers] = useState(false);
+  const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (attemptId) {
@@ -55,7 +57,6 @@ export default function Results() {
   }, [attemptId]);
 
   const fetchResults = async () => {
-    // Fetch attempt
     const { data: attemptData, error: attemptError } = await supabase
       .from('test_attempts')
       .select(`
@@ -77,7 +78,6 @@ export default function Results() {
       return;
     }
 
-    // Fetch questions with choices
     const { data: questionsData } = await supabase
       .from('questions')
       .select(`
@@ -92,7 +92,6 @@ export default function Results() {
       .eq('test_id', (attemptData.tests as any).id)
       .order('order_index');
 
-    // Fetch user answers
     const { data: answersData } = await supabase
       .from('user_answers')
       .select('question_id, selected_choice_id, is_correct')
@@ -110,7 +109,6 @@ export default function Results() {
 
     setLoading(false);
 
-    // Confetti for good score
     const percentage = ((attemptData.score || 0) / (attemptData.total_questions || 1)) * 100;
     if (percentage >= 80) {
       setTimeout(() => {
@@ -121,12 +119,6 @@ export default function Results() {
         });
       }, 500);
     }
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins} daqiqa ${secs} soniya`;
   };
 
   const getScoreColor = (percentage: number) => {
@@ -143,6 +135,13 @@ export default function Results() {
     return 'Qayta urinib ko\'ring 🔄';
   };
 
+  const toggleQuestionExpand = (questionId: string) => {
+    setExpandedQuestions(prev => ({
+      ...prev,
+      [questionId]: !prev[questionId],
+    }));
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -157,7 +156,7 @@ export default function Results() {
     return (
       <Layout>
         <div className="container py-8 text-center">
-          <h1 className="font-display text-2xl font-bold mb-4">Natija topilmadi</h1>
+          <h1 className="font-serif text-2xl font-bold mb-4">Natija topilmadi</h1>
           <Link to="/dashboard">
             <Button>Bosh sahifaga qaytish</Button>
           </Link>
@@ -168,138 +167,195 @@ export default function Results() {
 
   const percentage = Math.round((result.score / result.total_questions) * 100);
   const subject = getSubjectById(result.test.subject);
+  const wrongAnswers = result.answers.filter(a => a.is_correct === false);
 
   return (
     <Layout>
-      <div className="container py-8 max-w-4xl">
-        {/* Score Card */}
-        <Card className="mb-8 overflow-hidden">
-          <div className="gradient-hero p-8 text-center text-white">
-            <div className="text-6xl mb-4">{subject?.icon}</div>
-            <h1 className="font-display text-3xl font-bold mb-2">{result.test.title}</h1>
-            <p className="opacity-80">{subject?.name}</p>
+      <PageTransition>
+        <div className="container py-8 max-w-4xl">
+          {/* Score Card */}
+          <Card className="mb-8 overflow-hidden">
+            <div className="bg-gradient-to-r from-primary via-accent to-primary p-8 text-center text-white">
+              <div className="text-6xl mb-4">{subject?.icon}</div>
+              <h1 className="font-serif text-3xl font-bold mb-2">{result.test.title}</h1>
+              <p className="opacity-80">{subject?.name}</p>
+            </div>
+            <CardContent className="p-8">
+              <div className="text-center mb-8">
+                <div className={cn("text-7xl font-serif font-bold mb-2", getScoreColor(percentage))}>
+                  {percentage}%
+                </div>
+                <p className="text-xl text-muted-foreground mb-4">
+                  {result.score} / {result.total_questions} to'g'ri javob
+                </p>
+                <p className="text-2xl font-semibold">{getScoreMessage(percentage)}</p>
+              </div>
+
+              <Progress value={percentage} className="h-4 mb-8" />
+
+              <div className="grid sm:grid-cols-3 gap-4 text-center">
+                <div className="p-4 rounded-lg bg-muted">
+                  <Trophy className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <p className="text-2xl font-bold">{result.score}</p>
+                  <p className="text-sm text-muted-foreground">To'g'ri</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <XCircle className="h-6 w-6 mx-auto mb-2 text-destructive" />
+                  <p className="text-2xl font-bold">{result.total_questions - result.score}</p>
+                  <p className="text-sm text-muted-foreground">Noto'g'ri</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <Clock className="h-6 w-6 mx-auto mb-2 text-info" />
+                  <p className="text-2xl font-bold">{Math.floor(result.time_spent_seconds / 60)}</p>
+                  <p className="text-sm text-muted-foreground">Daqiqa</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-4 justify-center mb-8">
+            <Link to={`/test/${result.test.id}`}>
+              <Button variant="premium" size="lg">
+                <RotateCcw className="h-5 w-5 mr-2" />
+                Qayta ishlash
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setShowAnswers(!showAnswers)}
+            >
+              {showAnswers ? 'Javoblarni yashirish' : 'Javoblarni ko\'rish'}
+            </Button>
+            <Link to="/dashboard">
+              <Button variant="outline" size="lg">
+                <Home className="h-5 w-5 mr-2" />
+                Bosh sahifa
+              </Button>
+            </Link>
           </div>
-          <CardContent className="p-8">
-            <div className="text-center mb-8">
-              <div className={cn("text-7xl font-display font-bold mb-2", getScoreColor(percentage))}>
-                {percentage}%
-              </div>
-              <p className="text-xl text-muted-foreground mb-4">
-                {result.score} / {result.total_questions} to'g'ri javob
-              </p>
-              <p className="text-2xl font-semibold">{getScoreMessage(percentage)}</p>
-            </div>
 
-            <Progress value={percentage} className="h-4 mb-8" />
-
-            <div className="grid sm:grid-cols-3 gap-4 text-center">
-              <div className="p-4 rounded-lg bg-muted">
-                <Trophy className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <p className="text-2xl font-bold">{result.score}</p>
-                <p className="text-sm text-muted-foreground">To'g'ri</p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <XCircle className="h-6 w-6 mx-auto mb-2 text-destructive" />
-                <p className="text-2xl font-bold">{result.total_questions - result.score}</p>
-                <p className="text-sm text-muted-foreground">Noto'g'ri</p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <Clock className="h-6 w-6 mx-auto mb-2 text-info" />
-                <p className="text-2xl font-bold">{Math.floor(result.time_spent_seconds / 60)}</p>
-                <p className="text-sm text-muted-foreground">Daqiqa</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Actions */}
-        <div className="flex flex-wrap gap-4 justify-center mb-8">
-          <Link to={`/test/${result.test.id}`}>
-            <Button variant="gradient" size="lg">
-              <RotateCcw className="h-5 w-5 mr-2" />
-              Qayta ishlash
-            </Button>
-          </Link>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => setShowAnswers(!showAnswers)}
-          >
-            {showAnswers ? 'Javoblarni yashirish' : 'Javoblarni ko\'rish'}
-          </Button>
-          <Link to="/dashboard">
-            <Button variant="outline" size="lg">
-              <Home className="h-5 w-5 mr-2" />
-              Bosh sahifa
-            </Button>
-          </Link>
-        </div>
-
-        {/* Answers Review */}
-        {showAnswers && (
-          <div className="space-y-4">
-            <h2 className="font-display text-2xl font-bold mb-4">Javoblar tahlili</h2>
-            {result.questions.map((question, idx) => {
-              const userAnswer = result.answers.find((a) => a.question_id === question.id);
-              const isCorrect = userAnswer?.is_correct;
-              const correctChoice = question.choices.find((c) => c.is_correct);
-
-              return (
-                <Card key={question.id} className={cn(
-                  "border-2",
-                  isCorrect ? "border-success/30" : "border-destructive/30"
-                )}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start gap-3">
-                      <div className={cn(
-                        "flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0",
-                        isCorrect ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"
-                      )}>
-                        {isCorrect ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-                      </div>
-                      <CardTitle className="font-display text-lg">
-                        {idx + 1}. {question.question_text}
-                      </CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 ml-11">
-                      {question.choices.map((choice) => {
-                        const isSelected = userAnswer?.selected_choice_id === choice.id;
-                        const isCorrectChoice = choice.is_correct;
-
-                        return (
-                          <div
-                            key={choice.id}
-                            className={cn(
-                              "p-3 rounded-lg border",
-                              isCorrectChoice && "bg-success/10 border-success",
-                              isSelected && !isCorrectChoice && "bg-destructive/10 border-destructive",
-                              !isSelected && !isCorrectChoice && "bg-muted/50"
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              {isCorrectChoice && <CheckCircle className="h-4 w-4 text-success" />}
-                              {isSelected && !isCorrectChoice && <XCircle className="h-4 w-4 text-destructive" />}
-                              <span className={cn(
-                                isCorrectChoice && "font-semibold text-success",
-                                isSelected && !isCorrectChoice && "line-through text-destructive"
-                              )}>
-                                {choice.choice_text}
-                              </span>
-                              {isSelected && <span className="text-xs text-muted-foreground">(sizning javobingiz)</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
+          {/* Answers Review */}
+          {showAnswers && (
+            <div className="space-y-4">
+              <h2 className="font-serif text-2xl font-bold mb-4">Javoblar tahlili</h2>
+              
+              {/* Summary for wrong answers */}
+              {wrongAnswers.length > 0 && (
+                <Card className="border-warning/30 bg-warning/5 mb-6">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Info className="h-5 w-5 text-warning" />
+                      <p className="text-sm">
+                        <strong>{wrongAnswers.length}</strong> ta savolga noto'g'ri javob berdingiz. 
+                        Har bir savolning yechimini ko'rish uchun ustiga bosing.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              )}
+
+              {result.questions.map((question, idx) => {
+                const userAnswer = result.answers.find((a) => a.question_id === question.id);
+                const isCorrect = userAnswer?.is_correct;
+                const correctChoice = question.choices.find((c) => c.is_correct);
+                const selectedChoice = question.choices.find((c) => c.id === userAnswer?.selected_choice_id);
+                const isExpanded = expandedQuestions[question.id];
+
+                return (
+                  <Card 
+                    key={question.id} 
+                    className={cn(
+                      "border-2 transition-all cursor-pointer",
+                      isCorrect ? "border-success/30" : "border-destructive/30"
+                    )}
+                    onClick={() => !isCorrect && toggleQuestionExpand(question.id)}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0",
+                          isCorrect ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"
+                        )}>
+                          {isCorrect ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                        </div>
+                        <div className="flex-1">
+                          <CardTitle className="font-serif text-lg">
+                            {idx + 1}. {question.question_text}
+                          </CardTitle>
+                        </div>
+                        {!isCorrect && (
+                          <Button variant="ghost" size="icon" className="flex-shrink-0">
+                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 ml-11">
+                        {question.choices.map((choice) => {
+                          const isSelected = userAnswer?.selected_choice_id === choice.id;
+                          const isCorrectChoice = choice.is_correct;
+
+                          return (
+                            <div
+                              key={choice.id}
+                              className={cn(
+                                "p-3 rounded-lg border",
+                                isCorrectChoice && "bg-success/10 border-success",
+                                isSelected && !isCorrectChoice && "bg-destructive/10 border-destructive",
+                                !isSelected && !isCorrectChoice && "bg-muted/50"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                {isCorrectChoice && <CheckCircle className="h-4 w-4 text-success" />}
+                                {isSelected && !isCorrectChoice && <XCircle className="h-4 w-4 text-destructive" />}
+                                <span className={cn(
+                                  isCorrectChoice && "font-semibold text-success",
+                                  isSelected && !isCorrectChoice && "line-through text-destructive"
+                                )}>
+                                  {choice.choice_text}
+                                </span>
+                                {isSelected && <span className="text-xs text-muted-foreground">(sizning javobingiz)</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Explanation for wrong answers */}
+                      {!isCorrect && isExpanded && (
+                        <div className="mt-4 ml-11 p-4 rounded-lg bg-info/10 border border-info/30">
+                          <div className="flex items-start gap-3">
+                            <Info className="h-5 w-5 text-info flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-info mb-2">Tushuntirish:</p>
+                              <p className="text-sm text-muted-foreground">
+                                To'g'ri javob: <strong className="text-success">{correctChoice?.choice_text}</strong>
+                              </p>
+                              {selectedChoice && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Siz tanladingiz: <span className="text-destructive line-through">{selectedChoice.choice_text}</span>
+                                </p>
+                              )}
+                              {!selectedChoice && (
+                                <p className="text-sm text-warning mt-1">
+                                  Siz bu savolga javob bermadingiz.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </PageTransition>
     </Layout>
   );
 }

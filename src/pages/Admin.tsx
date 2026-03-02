@@ -101,6 +101,7 @@ export default function Admin() {
   const [pdfDuration, setPdfDuration] = useState(30);
   const [pdfAccessCode, setPdfAccessCode] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfAnswerKeys, setPdfAnswerKeys] = useState('');
   const [importing, setImporting] = useState(false);
 
   // Question form state
@@ -332,6 +333,9 @@ export default function Admin() {
       if (pdfAccessCode.trim()) {
         formData.append('access_code', pdfAccessCode.trim());
       }
+      if (pdfAnswerKeys.trim()) {
+        formData.append('answer_keys', pdfAnswerKeys.trim());
+      }
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf-to-test`, {
         method: 'POST',
@@ -518,6 +522,7 @@ export default function Admin() {
     setPdfDuration(30);
     setPdfAccessCode('');
     setPdfFile(null);
+    setPdfAnswerKeys('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -692,6 +697,20 @@ export default function Admin() {
                         <p className="text-sm text-muted-foreground">
                           <strong>AI avtomatik tahlil qiladi:</strong> PDF dagi savollar, javob variantlari va to'g'ri javoblarni aniqlaydi. 
                           Noto'g'ri javob bergan foydalanuvchilarga tushuntirish ko'rsatiladi.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          📝 Javoblar kaliti (ixtiyoriy)
+                        </Label>
+                        <Textarea
+                          value={pdfAnswerKeys}
+                          onChange={(e) => setPdfAnswerKeys(e.target.value)}
+                          placeholder={"Masalan:\n1-B\n2-A\n3-D\n4-C\n5-A\n...\n\nYoki: 1B 2A 3D 4C 5A"}
+                          rows={6}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Javoblar kalitini kiritganingizda AI shu bo'yicha to'g'ri javoblarni belgilaydi. Kiritmasangiz AI o'zi aniqlaydi.
                         </p>
                       </div>
                     </div>

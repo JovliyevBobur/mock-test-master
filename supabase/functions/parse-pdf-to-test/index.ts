@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
     const title = formData.get("title") as string
     const duration_minutes = parseInt(formData.get("duration_minutes") as string || "30")
     const access_code = formData.get("access_code") as string | null
+    const answer_keys = formData.get("answer_keys") as string | null
 
     if (!file || !subject || !title) {
       return new Response(
@@ -34,7 +35,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if file is PDF
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       return new Response(
         JSON.stringify({ error: "Faqat PDF fayl yuklash mumkin" }),
@@ -42,16 +42,33 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Read PDF content as base64
     const arrayBuffer = await file.arrayBuffer()
-    const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+    const uint8Array = new Uint8Array(arrayBuffer)
+    // Process in chunks to avoid stack overflow for large files
+    let base64Content = ""
+    const chunkSize = 32768
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.slice(i, i + chunkSize)
+      base64Content += btoa(String.fromCharCode(...chunk))
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY topilmadi")
     }
 
-    // Use Lovable AI with vision to parse PDF
+    // Build prompt based on whether answer keys are provided
+    let answerKeyInstruction = ""
+    if (answer_keys && answer_keys.trim()) {
+      answerKeyInstruction = `
+
+MUHIM: Quyidagi javoblar kaliti berilgan. Shu bo'yicha to'g'ri javoblarni belgilang:
+${answer_keys}
+
+Javoblar kaliti formatlarini tushunib ol (masalan: "1-B", "1B", "1.B", "1) B" va h.k.).
+Har bir savolning to'g'ri javobini shu kalitdan olgin.`
+    }
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -83,11 +100,11 @@ PDF fayldan test savollarini ajratib ol va quyidagi JSON formatda qaytar:
 MUHIM QOIDALAR:
 1. Har bir savolda kamida 2 ta, ko'pi bilan 4 ta javob varianti bo'lsin
 2. Faqat BITTA to'g'ri javob bo'lsin (is_correct: true)
-3. To'g'ri javobni aniq belgilang - odatda (*) yoki boshqa belgilar bilan ko'rsatilgan bo'ladi
-4. Agar to'g'ri javob aniq bo'lmasa, birinchi variantni to'g'ri deb belgilang
-5. Faqat toza JSON qaytar, boshqa hech narsa yo'q
-6. Savollarni asl tilda saqlang
-7. Har bir savol uchun explanation yozing - bu noto'g'ri javob bergan foydalanuvchilarga ko'rsatiladi`
+3. To'g'ri javobni aniq belgilang
+4. Faqat toza JSON qaytar, boshqa hech narsa yo'q
+5. Savollarni asl tilda saqlang
+6. Har bir savol uchun explanation yozing
+${answerKeyInstruction}`
           },
           {
             role: "user",
@@ -119,7 +136,7 @@ MUHIM QOIDALAR:
       }
       if (aiResponse.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Lovable AI krediti tugadi." }),
+          JSON.stringify({ error: "AI krediti tugadi." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
@@ -131,7 +148,6 @@ MUHIM QOIDALAR:
     const aiData = await aiResponse.json()
     const aiContent = aiData.choices?.[0]?.message?.content || ""
     
-    // Parse JSON from AI response
     let parsedQuestions: ParsedQuestion[] = []
     try {
       const jsonMatch = aiContent.match(/\{[\s\S]*\}/)
@@ -152,12 +168,10 @@ MUHIM QOIDALAR:
       )
     }
 
-    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Get user from authorization header
     const authHeader = req.headers.get("authorization")
     if (!authHeader) {
       return new Response(
@@ -176,7 +190,6 @@ MUHIM QOIDALAR:
       )
     }
 
-    // Check if user is super_admin (only super admin can upload PDF)
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
@@ -190,7 +203,6 @@ MUHIM QOIDALAR:
       )
     }
 
-    // Create the test
     const { data: testData, error: testError } = await supabase
       .from("tests")
       .insert({
@@ -209,7 +221,6 @@ MUHIM QOIDALAR:
       throw new Error(`Test yaratishda xatolik: ${testError.message}`)
     }
 
-    // Insert questions and choices
     for (let i = 0; i < parsedQuestions.length; i++) {
       const q = parsedQuestions[i]
       
@@ -228,7 +239,6 @@ MUHIM QOIDALAR:
         continue
       }
 
-      // Insert choices
       const choicesData = q.choices.map((c, idx) => ({
         question_id: questionData.id,
         choice_text: c.choice_text,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSubjectById, SUBJECTS } from '@/lib/constants';
-import { User, Trophy, Clock, BookOpen, TrendingUp, Edit, Save, X } from 'lucide-react';
+import { User, Trophy, Clock, BookOpen, TrendingUp, Edit, Save, X, Camera, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,8 @@ export default function Profile() {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -57,7 +59,6 @@ export default function Profile() {
   }, [profile]);
 
   const fetchData = async () => {
-    // Fetch all attempts
     const { data: attemptsData } = await supabase
       .from('test_attempts')
       .select(`
@@ -80,11 +81,11 @@ export default function Profile() {
     if (attemptsData) {
       setAttempts(attemptsData as unknown as TestAttempt[]);
 
-      // Calculate subject stats
       const statsMap = new Map<string, SubjectStats>();
       
       attemptsData.forEach((attempt: any) => {
-        const subject = attempt.tests.subject;
+        const subject = attempt.tests?.subject;
+        if (!subject) return;
         const existing = statsMap.get(subject) || {
           subject,
           tests_completed: 0,
@@ -104,6 +105,55 @@ export default function Profile() {
     }
 
     setLoading(false);
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file
+    if (!file.type.startsWith('image/')) {
+      toast.error('Faqat rasm fayllari yuklanishi mumkin');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Rasm hajmi 2MB dan oshmasligi kerak');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      // Upload file
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: `${publicUrl}?t=${Date.now()}` })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      await refreshProfile();
+      toast.success('Profil rasmi yangilandi');
+    } catch (error: any) {
+      toast.error('Rasm yuklashda xatolik: ' + (error.message || 'Noma\'lum xato'));
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {
@@ -160,12 +210,32 @@ export default function Profile() {
           <div>
             <Card>
               <CardContent className="p-6 text-center">
-                <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-background shadow-xl">
-                  <AvatarImage src={profile?.avatar_url || ''} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
-                    {profile?.full_name ? getInitials(profile.full_name) : 'U'}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative inline-block mb-4">
+                  <Avatar className="h-24 w-24 border-4 border-primary/30 shadow-xl">
+                    <AvatarImage src={profile?.avatar_url || ''} />
+                    <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
+                      {profile?.full_name ? getInitials(profile.full_name) : 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {uploadingAvatar ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                </div>
 
                 {editing ? (
                   <div className="space-y-4">
@@ -277,7 +347,7 @@ export default function Profile() {
                     ) : (
                       <div className="space-y-3">
                         {attempts.map((attempt) => {
-                          const subject = getSubjectById(attempt.tests.subject);
+                          const subject = getSubjectById(attempt.tests?.subject);
                           const percentage = Math.round((attempt.score / attempt.total_questions) * 100);
 
                           return (
@@ -287,7 +357,7 @@ export default function Profile() {
                             >
                               <div className="text-3xl">{subject?.icon}</div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-medium truncate">{attempt.tests.title}</h4>
+                                <h4 className="font-medium truncate">{attempt.tests?.title}</h4>
                                 <p className="text-sm text-muted-foreground">
                                   {subject?.name} • {new Date(attempt.completed_at).toLocaleDateString('uz-UZ')}
                                 </p>

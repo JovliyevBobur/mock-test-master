@@ -4,8 +4,22 @@ import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
 import { CosmicBackground } from '@/components/ui/CosmicBackground';
 import { CheckCircle, BookOpen, Trophy, Clock, Users, TrendingUp, Rocket, ArrowRight, Award } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import logoImg from '@/assets/logo.png';
 
 export default function Landing() {
+  const { data: stats } = useQuery({
+    queryKey: ['landing-stats'],
+    queryFn: async () => {
+      const [{ count: userCount }, { count: questionCount }] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('questions').select('*', { count: 'exact', head: true }),
+      ]);
+      return { users: userCount ?? 0, questions: questionCount ?? 0 };
+    },
+  });
+
   const features = [
     {
       icon: BookOpen,
@@ -73,14 +87,14 @@ export default function Landing() {
                 <div className="flex items-center gap-4 px-8 py-4 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/60">
                   <Users className="h-7 w-7 text-accent" />
                   <div className="text-left">
-                    <p className="font-serif text-2xl font-bold">10,000+</p>
+                    <p className="font-serif text-2xl font-bold">{stats?.users?.toLocaleString() ?? '0'}</p>
                     <p className="text-sm text-muted-foreground">foydalanuvchi</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 px-8 py-4 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/60">
                   <BookOpen className="h-7 w-7 text-accent" />
                   <div className="text-left">
-                    <p className="font-serif text-2xl font-bold">5,000+</p>
+                    <p className="font-serif text-2xl font-bold">{stats?.questions?.toLocaleString() ?? '0'}</p>
                     <p className="text-sm text-muted-foreground">savollar</p>
                   </div>
                 </div>
@@ -151,9 +165,7 @@ export default function Landing() {
         <footer className="py-12 border-t bg-card/50 backdrop-blur-sm">
           <div className="container flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 font-serif text-xl font-bold">
-              <div className="p-2 rounded-xl bg-accent/10">
-                <BookOpen className="h-6 w-6 text-accent" />
-              </div>
+              <img src={logoImg} alt="MockTest Logo" className="h-10 w-10 rounded-xl" />
               <span>MockTest Pro</span>
             </div>
             <p className="text-muted-foreground">

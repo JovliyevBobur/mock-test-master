@@ -9,10 +9,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { BookOpen, LogOut, User, LayoutDashboard, ChevronDown, Menu } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, ChevronDown, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState } from 'react';
-
+import logoImg from '@/assets/logo.png';
 export function Header() {
   const { user, profile, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
@@ -43,9 +43,7 @@ export function Header() {
       <div className="container flex h-20 items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-md transition-transform duration-300 group-hover:scale-105">
-            <BookOpen className="h-5 w-5" />
-          </div>
+          <img src={logoImg} alt="MockTest Logo" className="h-11 w-11 rounded-md shadow-md transition-transform duration-300 group-hover:scale-105" />
           <div className="flex flex-col">
             <span className="font-serif text-xl font-semibold tracking-tight text-foreground">MockTest</span>
             <span className="text-[10px] tracking-elegant text-accent font-medium uppercase">Professional</span>

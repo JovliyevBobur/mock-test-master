@@ -157,7 +157,7 @@ export default function Landing() {
               <span>MockTest Pro</span>
             </div>
             <p className="text-muted-foreground">
-              © 2024 MockTest Pro. Barcha huquqlar himoyalangan.
+              © 2025 MockTest Pro. Barcha huquqlar himoyalangan.
             </p>
           </div>
         </footer>

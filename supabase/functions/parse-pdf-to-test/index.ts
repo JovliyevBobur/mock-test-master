@@ -14,6 +14,8 @@ interface ParsedQuestion {
   explanation?: string
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders })
@@ -28,6 +30,7 @@ Deno.serve(async (req) => {
     const access_code = formData.get("access_code") as string | null
     const answer_keys = formData.get("answer_keys") as string | null
 
+    // === INPUT VALIDATION ===
     if (!file || !subject || !title) {
       return new Response(
         JSON.stringify({ error: "file, subject va title majburiy" }),
@@ -35,6 +38,31 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Validate title length
+    if (title.length < 3 || title.length > 200) {
+      return new Response(
+        JSON.stringify({ error: "Test nomi 3-200 belgi orasida bo'lishi kerak" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Validate duration
+    if (isNaN(duration_minutes) || duration_minutes < 5 || duration_minutes > 240) {
+      return new Response(
+        JSON.stringify({ error: "Davomiyligi 5-240 daqiqa orasida bo'lishi kerak" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Validate access code
+    if (access_code && (access_code.length < 4 || access_code.length > 20)) {
+      return new Response(
+        JSON.stringify({ error: "Kirish kodi 4-20 belgi orasida bo'lishi kerak" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Validate file extension
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       return new Response(
         JSON.stringify({ error: "Faqat PDF fayl yuklash mumkin" }),
@@ -42,8 +70,25 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return new Response(
+        JSON.stringify({ error: `Fayl juda katta. Maksimal hajm: ${MAX_FILE_SIZE / 1024 / 1024}MB` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
+
+    // Validate PDF magic number (%PDF)
+    if (uint8Array.length < 4 || uint8Array[0] !== 0x25 || uint8Array[1] !== 0x50 || uint8Array[2] !== 0x44 || uint8Array[3] !== 0x46) {
+      return new Response(
+        JSON.stringify({ error: "Fayl haqiqiy PDF formatida emas" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     // Process in chunks to avoid stack overflow for large files
     let base64Content = ""
     const chunkSize = 32768
@@ -130,19 +175,19 @@ ${answerKeyInstruction}`
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Juda ko'p so'rov yuborildi. Biroz kuting." }),
+          JSON.stringify({ error: "Juda ko'p so'rov yuborildi. Iltimos, 1 daqiqadan keyin qayta urinib ko'ring." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
       if (aiResponse.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI krediti tugadi." }),
+          JSON.stringify({ error: "AI krediti tugadi. Iltimos, administratorga murojaat qiling." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
       const errorText = await aiResponse.text()
       console.error("AI error:", aiResponse.status, errorText)
-      throw new Error(`AI xatolik: ${errorText}`)
+      throw new Error(`AI xatolik: ${aiResponse.status}`)
     }
 
     const aiData = await aiResponse.json()
@@ -158,7 +203,7 @@ ${answerKeyInstruction}`
     } catch (parseError) {
       console.error("JSON parsing error:", parseError)
       console.error("AI content:", aiContent)
-      throw new Error("AI javobini tahlil qilib bo'lmadi")
+      throw new Error("AI javobini tahlil qilib bo'lmadi. PDF formatini tekshiring.")
     }
 
     if (parsedQuestions.length === 0) {
@@ -168,6 +213,12 @@ ${answerKeyInstruction}`
       )
     }
 
+    // Limit questions count
+    if (parsedQuestions.length > 100) {
+      parsedQuestions = parsedQuestions.slice(0, 100)
+    }
+
+    // === AUTH & DB ===
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const supabase = createClient(supabaseUrl, supabaseKey)
@@ -206,13 +257,13 @@ ${answerKeyInstruction}`
     const { data: testData, error: testError } = await supabase
       .from("tests")
       .insert({
-        title: title,
+        title: title.trim(),
         description: `PDF dan import qilingan - ${parsedQuestions.length} ta savol`,
         subject: subject,
         duration_minutes: duration_minutes,
         created_by: user.id,
         is_published: false,
-        access_code: access_code || null,
+        access_code: access_code?.trim() || null,
       })
       .select()
       .single()
@@ -221,6 +272,7 @@ ${answerKeyInstruction}`
       throw new Error(`Test yaratishda xatolik: ${testError.message}`)
     }
 
+    let successCount = 0
     for (let i = 0; i < parsedQuestions.length; i++) {
       const q = parsedQuestions[i]
       
@@ -246,15 +298,16 @@ ${answerKeyInstruction}`
         order_index: idx,
       }))
 
-      await supabase.from("choices").insert(choicesData)
+      const { error: choiceError } = await supabase.from("choices").insert(choicesData)
+      if (!choiceError) successCount++
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         test_id: testData.id,
-        questions_count: parsedQuestions.length,
-        message: `${parsedQuestions.length} ta savol muvaffaqiyatli import qilindi`,
+        questions_count: successCount,
+        message: `${successCount} ta savol muvaffaqiyatli import qilindi`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )

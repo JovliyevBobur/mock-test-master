@@ -89,13 +89,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Process in chunks to avoid stack overflow for large files
-    let base64Content = ""
-    const chunkSize = 32768
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.slice(i, i + chunkSize)
-      base64Content += btoa(String.fromCharCode(...chunk))
-    }
+    // Use standard base64 encoding (Deno built-in)
+    const { encode: encodeBase64 } = await import("https://deno.land/std@0.208.0/encoding/base64.ts")
+    const base64Content = encodeBase64(uint8Array)
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")
     if (!LOVABLE_API_KEY) {

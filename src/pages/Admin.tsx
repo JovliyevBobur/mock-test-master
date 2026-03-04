@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
-import { CosmicBackground } from '@/components/ui/CosmicBackground';
+
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -584,7 +584,7 @@ export default function Admin() {
 
   return (
     <Layout>
-      <CosmicBackground />
+      
       <PageTransition>
         <div className="container relative py-8">
           {/* Header */}

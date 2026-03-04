@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
-import { CosmicBackground } from '@/components/ui/CosmicBackground';
+
 import { CheckCircle, BookOpen, Trophy, Clock, Users, TrendingUp, Rocket, ArrowRight, Award } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,7 +45,7 @@ export default function Landing() {
 
   return (
     <Layout>
-      <CosmicBackground />
+      
       <PageTransition>
         {/* Hero Section */}
         <section className="relative min-h-[90vh] flex items-center overflow-hidden">

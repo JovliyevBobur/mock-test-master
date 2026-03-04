@@ -144,7 +144,8 @@ MUHIM QOIDALAR:
 3. To'g'ri javobni aniq belgilang
 4. Faqat toza JSON qaytar, boshqa hech narsa yo'q
 5. Savollarni asl tilda saqlang
-6. Har bir savol uchun explanation yozing
+6. Har bir savol uchun explanation yozing - LEKIN juda qisqa, 1-2 jumla bilan
+7. Explanation JUDA QISQA bo'lsin, uzun matematik isbotlar yozma
 ${answerKeyInstruction}`
           },
           {
@@ -164,7 +165,7 @@ ${answerKeyInstruction}`
           }
         ],
         temperature: 0.1,
-        max_tokens: 16000,
+        max_tokens: 32000,
       }),
     })
 
@@ -191,14 +192,35 @@ ${answerKeyInstruction}`
     
     let parsedQuestions: ParsedQuestion[] = []
     try {
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/)
+      // Strip markdown code block wrappers
+      let cleanContent = aiContent.trim()
+      if (cleanContent.startsWith("```")) {
+        cleanContent = cleanContent.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "")
+      }
+      
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        parsedQuestions = parsed.questions || []
+        let jsonStr = jsonMatch[0]
+        try {
+          const parsed = JSON.parse(jsonStr)
+          parsedQuestions = parsed.questions || []
+        } catch {
+          // Try to fix truncated JSON by closing arrays/objects
+          // Find last complete question object
+          const lastCompleteIdx = jsonStr.lastIndexOf('},')
+          if (lastCompleteIdx > 0) {
+            jsonStr = jsonStr.substring(0, lastCompleteIdx + 1) + ']}'
+            const parsed = JSON.parse(jsonStr)
+            parsedQuestions = parsed.questions || []
+            console.log("Recovered truncated JSON, got", parsedQuestions.length, "questions")
+          } else {
+            throw new Error("Cannot recover JSON")
+          }
+        }
       }
     } catch (parseError) {
       console.error("JSON parsing error:", parseError)
-      console.error("AI content:", aiContent)
+      console.error("AI content (first 500):", aiContent.substring(0, 500))
       throw new Error("AI javobini tahlil qilib bo'lmadi. PDF formatini tekshiring.")
     }
 

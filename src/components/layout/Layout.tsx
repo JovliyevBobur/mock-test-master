@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Header } from './Header';
-import { FloatingSpaceObjects } from '@/components/ui/FloatingSpaceObjects';
+import { FloatingShapes } from '@/components/ui/FloatingShapes';
 
 interface LayoutProps {
   children: ReactNode;
@@ -9,7 +9,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background relative">
-      <FloatingSpaceObjects />
+      <FloatingShapes className="fixed z-0" />
       <Header />
       <main className="relative z-10">{children}</main>
     </div>

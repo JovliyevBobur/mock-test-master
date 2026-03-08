@@ -86,7 +86,7 @@ export default function Admin() {
   const [stats, setStats] = useState({ tests: 0, questions: 0, users: 0, attempts: 0, avgScore: 0 });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAccessCode, setShowAccessCode] = useState<Record<string, boolean>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_PDF_SIZE = 20 * 1024 * 1024; // 20MB
 
   // Form state
   const [title, setTitle] = useState('');

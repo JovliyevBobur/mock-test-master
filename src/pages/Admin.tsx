@@ -398,6 +398,12 @@ export default function Admin() {
       return;
     }
 
+    if (file.size > MAX_PDF_SIZE) {
+      toast.error('PDF hajmi 20MB dan oshmasligi kerak');
+      e.target.value = '';
+      return;
+    }
+
     setPdfFile(file);
     if (!pdfTitle) {
       setPdfTitle(file.name.replace(/\.pdf$/i, ''));

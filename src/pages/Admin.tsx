@@ -318,8 +318,18 @@ export default function Admin() {
       return;
     }
 
+    if (!session?.access_token) {
+      toast.error('Iltimos, qayta login qiling va yana urinib ko‘ring');
+      return;
+    }
+
     if (!pdfFile.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Faqat PDF fayl yuklash mumkin');
+      return;
+    }
+
+    if (pdfFile.size > MAX_PDF_SIZE) {
+      toast.error('PDF hajmi 20MB dan oshmasligi kerak');
       return;
     }
 
@@ -327,9 +337,9 @@ export default function Admin() {
     try {
       const formData = new FormData();
       formData.append('file', pdfFile);
-      formData.append('title', pdfTitle);
+      formData.append('title', pdfTitle.trim());
       formData.append('subject', pdfSubject);
-      formData.append('duration_minutes', pdfDuration.toString());
+      formData.append('duration_minutes', String(Math.min(240, Math.max(5, pdfDuration))));
       if (pdfAccessCode.trim()) {
         formData.append('access_code', pdfAccessCode.trim());
       }
@@ -337,17 +347,28 @@ export default function Admin() {
         formData.append('answer_keys', pdfAnswerKeys.trim());
       }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf-to-test`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: formData,
+        signal: controller.signal,
       });
 
-      const data = await response.json();
-      
+      clearTimeout(timeoutId);
+
+      const rawResponse = await response.text();
+      const data = rawResponse ? JSON.parse(rawResponse) : {};
+
       if (!response.ok) {
+        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko‘ring.");
+        if (response.status === 402) throw new Error("AI krediti tugagan. Administrator bilan bog‘laning.");
+        if (response.status === 413) throw new Error("PDF juda katta yoki murakkab. Hajmini kamaytirib qayta yuklang.");
         throw new Error(data.error || 'Import xatoligi');
       }
 
@@ -357,7 +378,11 @@ export default function Admin() {
       fetchTests();
       fetchStats();
     } catch (error: any) {
-      toast.error(error.message || 'Import xatoligi');
+      if (error?.name === 'AbortError') {
+        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko‘ring.');
+      } else {
+        toast.error(error.message || 'Import xatoligi');
+      }
     } finally {
       setImporting(false);
     }

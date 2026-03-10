@@ -327,7 +327,7 @@ export default function Admin() {
     }
 
     if (!session?.access_token) {
-      toast.error('Iltimos, qayta login qiling va yana urinib ko‘ring');
+      toast.error('Iltimos, qayta login qiling');
       return;
     }
 
@@ -342,6 +342,7 @@ export default function Admin() {
     }
 
     setImporting(true);
+    setImportStage(1);
     try {
       const formData = new FormData();
       formData.append('file', pdfFile);
@@ -358,6 +359,8 @@ export default function Admin() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 180000);
 
+      setTimeout(() => setImportStage(prev => prev >= 1 ? 2 as ImportStage : prev), 1500);
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf-to-test`, {
         method: 'POST',
         headers: {
@@ -369,30 +372,40 @@ export default function Admin() {
       });
 
       clearTimeout(timeoutId);
+      setImportStage(3);
 
       const rawResponse = await response.text();
       const data = rawResponse ? JSON.parse(rawResponse) : {};
 
       if (!response.ok) {
-        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko‘ring.");
-        if (response.status === 402) throw new Error("AI krediti tugagan. Administrator bilan bog‘laning.");
-        if (response.status === 413) throw new Error("PDF juda katta yoki murakkab. Hajmini kamaytirib qayta yuklang.");
+        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko'ring.");
+        if (response.status === 402) throw new Error("AI krediti tugagan.");
+        if (response.status === 413) throw new Error("PDF juda katta. Hajmini kamaytirib qayta yuklang.");
         throw new Error(data.error || 'Import xatoligi');
       }
 
-      toast.success(`${data.questions_count} ta savol muvaffaqiyatli import qilindi!`);
-      setPdfDialogOpen(false);
-      resetPdfForm();
-      fetchTests();
-      fetchStats();
+      setImportStage(4);
+
+      setTimeout(() => {
+        setImportedTestId(data.test_id);
+        setImportedTestTitle(pdfTitle.trim());
+        setImportedQuestionsCount(data.questions_count);
+        setPdfDialogOpen(false);
+        setPreviewDialogOpen(true);
+        setImportStage(0);
+        setImporting(false);
+        resetPdfForm();
+        fetchTests();
+        fetchStats();
+      }, 1200);
     } catch (error: any) {
+      setImportStage(0);
+      setImporting(false);
       if (error?.name === 'AbortError') {
-        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko‘ring.');
+        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko\'ring.');
       } else {
         toast.error(error.message || 'Import xatoligi');
       }
-    } finally {
-      setImporting(false);
     }
   };
 

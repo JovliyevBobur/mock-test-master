@@ -765,9 +765,10 @@ export default function Admin() {
                           Javoblar kalitini kiritganingizda AI shu bo'yicha to'g'ri javoblarni belgilaydi. Kiritmasangiz AI o'zi aniqlaydi.
                         </p>
                       </div>
+                      <ImportProgressBar stage={importStage} />
                     </div>
                     <DialogFooter className="mt-6">
-                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>Bekor</Button>
+                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)} disabled={importing}>Bekor</Button>
                       <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile}>
                         {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                         Import qilish

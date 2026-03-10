@@ -106,6 +106,11 @@ export default function Admin() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfAnswerKeys, setPdfAnswerKeys] = useState('');
   const [importing, setImporting] = useState(false);
+  const [importStage, setImportStage] = useState<ImportStage>(0);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [importedTestId, setImportedTestId] = useState<string | null>(null);
+  const [importedTestTitle, setImportedTestTitle] = useState('');
+  const [importedQuestionsCount, setImportedQuestionsCount] = useState(0);
 
   // Question form state
   const [newQuestionText, setNewQuestionText] = useState('');

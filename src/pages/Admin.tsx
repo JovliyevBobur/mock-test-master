@@ -1298,6 +1298,15 @@ export default function Admin() {
             </Tabs>
           </DialogContent>
         </Dialog>
+
+        <ImportPreviewDialog
+          open={previewDialogOpen}
+          onOpenChange={setPreviewDialogOpen}
+          testId={importedTestId}
+          testTitle={importedTestTitle}
+          questionsCount={importedQuestionsCount}
+          onPublished={() => { fetchTests(); fetchStats(); }}
+        />
       </PageTransition>
     </Layout>
   );

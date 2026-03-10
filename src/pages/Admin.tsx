@@ -17,6 +17,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SUBJECTS, getSubjectById } from '@/lib/constants';
+import { ImportProgressBar, type ImportStage } from '@/components/admin/ImportProgressBar';
+import { ImportPreviewDialog } from '@/components/admin/ImportPreviewDialog';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,

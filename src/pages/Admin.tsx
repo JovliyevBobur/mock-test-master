@@ -17,6 +17,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SUBJECTS, getSubjectById } from '@/lib/constants';
+import { ImportProgressBar, type ImportStage } from '@/components/admin/ImportProgressBar';
+import { ImportPreviewDialog } from '@/components/admin/ImportPreviewDialog';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,
@@ -104,6 +106,11 @@ export default function Admin() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfAnswerKeys, setPdfAnswerKeys] = useState('');
   const [importing, setImporting] = useState(false);
+  const [importStage, setImportStage] = useState<ImportStage>(0);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [importedTestId, setImportedTestId] = useState<string | null>(null);
+  const [importedTestTitle, setImportedTestTitle] = useState('');
+  const [importedQuestionsCount, setImportedQuestionsCount] = useState(0);
 
   // Question form state
   const [newQuestionText, setNewQuestionText] = useState('');
@@ -320,7 +327,7 @@ export default function Admin() {
     }
 
     if (!session?.access_token) {
-      toast.error('Iltimos, qayta login qiling va yana urinib ko‘ring');
+      toast.error('Iltimos, qayta login qiling');
       return;
     }
 
@@ -335,6 +342,7 @@ export default function Admin() {
     }
 
     setImporting(true);
+    setImportStage(1);
     try {
       const formData = new FormData();
       formData.append('file', pdfFile);
@@ -351,6 +359,8 @@ export default function Admin() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 180000);
 
+      setTimeout(() => setImportStage(prev => prev >= 1 ? 2 as ImportStage : prev), 1500);
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf-to-test`, {
         method: 'POST',
         headers: {
@@ -362,30 +372,40 @@ export default function Admin() {
       });
 
       clearTimeout(timeoutId);
+      setImportStage(3);
 
       const rawResponse = await response.text();
       const data = rawResponse ? JSON.parse(rawResponse) : {};
 
       if (!response.ok) {
-        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko‘ring.");
-        if (response.status === 402) throw new Error("AI krediti tugagan. Administrator bilan bog‘laning.");
-        if (response.status === 413) throw new Error("PDF juda katta yoki murakkab. Hajmini kamaytirib qayta yuklang.");
+        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko'ring.");
+        if (response.status === 402) throw new Error("AI krediti tugagan.");
+        if (response.status === 413) throw new Error("PDF juda katta. Hajmini kamaytirib qayta yuklang.");
         throw new Error(data.error || 'Import xatoligi');
       }
 
-      toast.success(`${data.questions_count} ta savol muvaffaqiyatli import qilindi!`);
-      setPdfDialogOpen(false);
-      resetPdfForm();
-      fetchTests();
-      fetchStats();
+      setImportStage(4);
+
+      setTimeout(() => {
+        setImportedTestId(data.test_id);
+        setImportedTestTitle(pdfTitle.trim());
+        setImportedQuestionsCount(data.questions_count);
+        setPdfDialogOpen(false);
+        setPreviewDialogOpen(true);
+        setImportStage(0);
+        setImporting(false);
+        resetPdfForm();
+        fetchTests();
+        fetchStats();
+      }, 1200);
     } catch (error: any) {
+      setImportStage(0);
+      setImporting(false);
       if (error?.name === 'AbortError') {
-        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko‘ring.');
+        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko\'ring.');
       } else {
         toast.error(error.message || 'Import xatoligi');
       }
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -745,9 +765,10 @@ export default function Admin() {
                           Javoblar kalitini kiritganingizda AI shu bo'yicha to'g'ri javoblarni belgilaydi. Kiritmasangiz AI o'zi aniqlaydi.
                         </p>
                       </div>
+                      <ImportProgressBar stage={importStage} />
                     </div>
                     <DialogFooter className="mt-6">
-                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>Bekor</Button>
+                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)} disabled={importing}>Bekor</Button>
                       <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile}>
                         {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                         Import qilish
@@ -1277,6 +1298,15 @@ export default function Admin() {
             </Tabs>
           </DialogContent>
         </Dialog>
+
+        <ImportPreviewDialog
+          open={previewDialogOpen}
+          onOpenChange={setPreviewDialogOpen}
+          testId={importedTestId}
+          testTitle={importedTestTitle}
+          questionsCount={importedQuestionsCount}
+          onPublished={() => { fetchTests(); fetchStats(); }}
+        />
       </PageTransition>
     </Layout>
   );

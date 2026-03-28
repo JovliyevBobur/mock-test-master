@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { PageTransition } from '@/components/PageTransition';
 
@@ -22,7 +22,8 @@ import { ImportPreviewDialog } from '@/components/admin/ImportPreviewDialog';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,
-  Upload, FileText, Ban, UserCheck, BarChart3, Target, Award, Lock, Eye, EyeOff
+  Upload, FileText, Ban, UserCheck, BarChart3, Target, Award, Lock, Eye, EyeOff,
+  ImagePlus, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -43,6 +44,7 @@ interface Test {
 interface Question {
   id: string;
   question_text: string;
+  image_url: string | null;
   order_index: number;
   choices: Choice[];
 }
@@ -89,7 +91,12 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAccessCode, setShowAccessCode] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const questionImageRef = useRef<HTMLInputElement>(null);
   const MAX_PDF_SIZE = 20 * 1024 * 1024; // 20MB
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [questionImageFile, setQuestionImageFile] = useState<File | null>(null);
+  const [questionImagePreview, setQuestionImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -266,6 +273,7 @@ export default function Admin() {
       .select(`
         id,
         question_text,
+        image_url,
         order_index,
         choices (
           id,
@@ -412,16 +420,17 @@ export default function Admin() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    processPdfFile(file);
+  };
 
+  const processPdfFile = (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Faqat PDF fayl yuklash mumkin');
-      e.target.value = '';
       return;
     }
 
     if (file.size > MAX_PDF_SIZE) {
       toast.error('PDF hajmi 20MB dan oshmasligi kerak');
-      e.target.value = '';
       return;
     }
 
@@ -429,6 +438,72 @@ export default function Admin() {
     if (!pdfTitle) {
       setPdfTitle(file.name.replace(/\.pdf$/i, ''));
     }
+  };
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processPdfFile(file);
+  }, [pdfTitle]);
+
+  const uploadQuestionImage = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+    const filePath = `questions/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('question-images')
+      .upload(filePath, file, { contentType: file.type });
+
+    if (error) {
+      console.error('Image upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('question-images')
+      .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
+  };
+
+  const handleQuestionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Faqat rasm fayllarini yuklash mumkin');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Rasm hajmi 5MB dan oshmasligi kerak');
+      e.target.value = '';
+      return;
+    }
+    setQuestionImageFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setQuestionImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const clearQuestionImage = () => {
+    setQuestionImageFile(null);
+    setQuestionImagePreview(null);
+    if (questionImageRef.current) questionImageRef.current.value = '';
   };
 
   const handleAddQuestion = async () => {
@@ -450,11 +525,23 @@ export default function Admin() {
 
     setSaving(true);
 
+    // Upload image if provided
+    let imageUrl: string | null = null;
+    if (questionImageFile) {
+      setUploadingImage(true);
+      imageUrl = await uploadQuestionImage(questionImageFile);
+      setUploadingImage(false);
+      if (!imageUrl) {
+        toast.error('Rasmni yuklashda xatolik. Savol rasmsiz saqlanadi.');
+      }
+    }
+
     const { data: questionData, error: questionError } = await supabase
       .from('questions')
       .insert({
         test_id: selectedTest.id,
         question_text: newQuestionText.trim(),
+        image_url: imageUrl,
         order_index: questions.length,
       })
       .select()
@@ -477,6 +564,7 @@ export default function Admin() {
 
     toast.success('Savol qo\'shildi');
     resetQuestionForm();
+    clearQuestionImage();
     fetchQuestions(selectedTest.id);
     fetchStats();
     setSaving(false);
@@ -588,6 +676,7 @@ export default function Admin() {
       { text: '', isCorrect: false },
       { text: '', isCorrect: false },
     ]);
+    clearQuestionImage();
   };
 
   const updateChoice = (index: number, field: 'text' | 'isCorrect', value: string | boolean) => {
@@ -731,25 +820,77 @@ export default function Admin() {
                       </div>
                       <div className="space-y-2">
                         <Label>PDF fayl yuklash</Label>
-                        <Input 
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".pdf"
-                          onChange={handleFileUpload}
-                          className="h-11"
-                        />
-                        {pdfFile && (
-                          <p className="text-sm text-success flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4" />
-                            {pdfFile.name} tanlandi
-                          </p>
-                        )}
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={cn(
+                            "relative flex flex-col items-center justify-center gap-3 p-8 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-300",
+                            isDragOver
+                              ? "border-primary bg-primary/5 scale-[1.02]"
+                              : pdfFile
+                              ? "border-success/50 bg-success/5"
+                              : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
+                          )}
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".pdf"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                          {pdfFile ? (
+                            <>
+                              <div className="p-3 rounded-xl bg-success/10">
+                                <CheckCircle className="h-8 w-8 text-success" />
+                              </div>
+                              <div className="text-center">
+                                <p className="font-semibold text-success">{pdfFile.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {(pdfFile.size / 1024 / 1024).toFixed(2)} MB • Boshqa fayl tanlash uchun bosing
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className={cn(
+                                "p-4 rounded-xl transition-all",
+                                isDragOver ? "bg-primary/10 scale-110" : "bg-muted"
+                              )}>
+                                <Upload className={cn(
+                                  "h-8 w-8 transition-colors",
+                                  isDragOver ? "text-primary" : "text-muted-foreground"
+                                )} />
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium">
+                                  {isDragOver ? "PDF faylni shu yerga tashlang" : "PDF faylni tanlang yoki tortib tashlang"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Maksimal hajm: 20MB • Faqat PDF format
+                                </p>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
-                        <p className="text-sm text-muted-foreground">
-                          <strong>AI avtomatik tahlil qiladi:</strong> PDF dagi savollar, javob variantlari va to'g'ri javoblarni aniqlaydi. 
-                          Noto'g'ri javob bergan foydalanuvchilarga tushuntirish ko'rsatiladi.
-                        </p>
+                      <div className="p-4 rounded-xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-blue-500/10">
+                        <div className="flex gap-3">
+                          <div className="p-2 rounded-lg bg-blue-500/10 h-fit">
+                            <span className="text-lg">🤖</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium mb-1">AI avtomatik tahlil qiladi</p>
+                            <ul className="text-xs text-muted-foreground space-y-1">
+                              <li>✅ Savollar va javob variantlarini ajratadi</li>
+                              <li>✅ To'g'ri javoblarni aniqlaydi</li>
+                              <li>✅ Chizma va diagrammalarni tavsiflab yozadi</li>
+                              <li>✅ Matematik formulalarni Unicode belgilar bilan saqlaydi</li>
+                            </ul>
+                          </div>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
@@ -1191,14 +1332,23 @@ export default function Admin() {
                   ) : (
                     <div className="space-y-4">
                       {questions.map((question, idx) => (
-                        <Card key={question.id}>
+                        <Card key={question.id} className="overflow-hidden">
                           <CardContent className="p-4">
                             <div className="flex items-start gap-4">
                               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm flex-shrink-0">
                                 {idx + 1}
                               </div>
-                              <div className="flex-1">
-                                <p className="font-medium mb-3">{question.question_text}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium mb-2 whitespace-pre-wrap">{question.question_text}</p>
+                                {question.image_url && (
+                                  <div className="mb-3 rounded-lg overflow-hidden border bg-muted/30 max-w-xs">
+                                    <img 
+                                      src={question.image_url} 
+                                      alt={`Savol ${idx + 1} rasmi`}
+                                      className="w-full h-auto max-h-48 object-contain"
+                                    />
+                                  </div>
+                                )}
                                 <div className="grid grid-cols-2 gap-2">
                                   {question.choices.map((choice) => (
                                     <div 
@@ -1240,23 +1390,72 @@ export default function Admin() {
               <TabsContent value="add" className="flex-1 overflow-auto">
                 <div className="space-y-6 py-4">
                   <div className="space-y-2">
-                    <Label>Savol matni</Label>
+                    <Label className="text-base font-semibold">Savol matni</Label>
                     <Textarea
                       value={newQuestionText}
                       onChange={(e) => setNewQuestionText(e.target.value)}
-                      placeholder="Savolni kiriting..."
-                      rows={3}
+                      placeholder="Savolni kiriting... Masalan: Quyidagi tenglamani yeching: x² + 5x + 6 = 0"
+                      rows={4}
+                      className="resize-none"
+                    />
+                  </div>
+
+                  {/* Image Upload Section */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <ImagePlus className="h-4 w-4" />
+                      Savol rasmi (ixtiyoriy)
+                    </Label>
+                    {questionImagePreview ? (
+                      <div className="relative inline-block">
+                        <div className="rounded-xl overflow-hidden border-2 border-primary/20 max-w-xs">
+                          <img
+                            src={questionImagePreview}
+                            alt="Savol rasmi"
+                            className="w-full h-auto max-h-48 object-contain bg-muted/30"
+                          />
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-lg"
+                          onClick={clearQuestionImage}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => questionImageRef.current?.click()}
+                        className="flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-muted-foreground/20 cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-all"
+                      >
+                        <div className="p-2 rounded-lg bg-muted">
+                          <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Rasm qo'shish</p>
+                          <p className="text-xs text-muted-foreground">PNG, JPG, WebP • Max 5MB</p>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      ref={questionImageRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleQuestionImageChange}
+                      className="hidden"
                     />
                   </div>
                   
                   <div className="space-y-4">
-                    <Label>Javob variantlari (to'g'ri javobni belgilang)</Label>
+                    <Label className="text-base font-semibold">Javob variantlari</Label>
+                    <p className="text-xs text-muted-foreground -mt-2">To'g'ri javobni belgilash uchun "To'g'ri" tugmasini bosing</p>
                     {newChoices.map((choice, idx) => (
                       <div key={idx} className="flex items-center gap-3">
                         <div className={cn(
-                          "flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm",
+                          "flex items-center justify-center w-9 h-9 rounded-xl font-bold text-sm transition-all",
                           choice.isCorrect 
-                            ? "bg-success text-success-foreground" 
+                            ? "bg-success text-success-foreground shadow-md shadow-success/25" 
                             : "bg-muted text-muted-foreground"
                         )}>
                           {String.fromCharCode(65 + idx)}
@@ -1264,7 +1463,7 @@ export default function Admin() {
                         <Input
                           value={choice.text}
                           onChange={(e) => updateChoice(idx, 'text', e.target.value)}
-                          placeholder={`${idx + 1}-variant`}
+                          placeholder={`${String.fromCharCode(65 + idx)}-variant javobini kiriting`}
                           className="flex-1"
                         />
                         <Button
@@ -1272,9 +1471,13 @@ export default function Admin() {
                           variant={choice.isCorrect ? "default" : "outline"}
                           size="sm"
                           onClick={() => updateChoice(idx, 'isCorrect', true)}
-                          className={choice.isCorrect ? "bg-success hover:bg-success/90" : ""}
+                          className={cn(
+                            "min-w-[90px] transition-all",
+                            choice.isCorrect ? "bg-success hover:bg-success/90 shadow-md shadow-success/25" : ""
+                          )}
                         >
-                          {choice.isCorrect ? <CheckCircle className="h-4 w-4" /> : "To'g'ri"}
+                          {choice.isCorrect ? <CheckCircle className="h-4 w-4 mr-1" /> : null}
+                          {choice.isCorrect ? "To'g'ri ✓" : "To'g'ri"}
                         </Button>
                       </div>
                     ))}
@@ -1283,15 +1486,21 @@ export default function Admin() {
                   <Button 
                     variant="premium" 
                     onClick={handleAddQuestion} 
-                    disabled={saving}
-                    className="w-full"
+                    disabled={saving || uploadingImage}
+                    className="w-full h-12 text-base"
+                    size="lg"
                   >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    {saving || uploadingImage ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        {uploadingImage ? 'Rasm yuklanmoqda...' : 'Saqlanmoqda...'}
+                      </>
                     ) : (
-                      <Plus className="h-4 w-4 mr-2" />
+                      <>
+                        <Plus className="h-5 w-5 mr-2" />
+                        Savolni qo'shish
+                      </>
                     )}
-                    Savolni qo'shish
                   </Button>
                 </div>
               </TabsContent>

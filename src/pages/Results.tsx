@@ -20,6 +20,7 @@ interface Choice {
 interface Question {
   id: string;
   question_text: string;
+  image_url: string | null;
   choices: Choice[];
 }
 
@@ -83,6 +84,7 @@ export default function Results() {
       .select(`
         id,
         question_text,
+        image_url,
         choices (
           id,
           choice_text,
@@ -281,9 +283,18 @@ export default function Results() {
                           {isCorrect ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
                         </div>
                         <div className="flex-1">
-                          <CardTitle className="font-serif text-lg">
+                          <CardTitle className="font-serif text-lg whitespace-pre-wrap">
                             {idx + 1}. {question.question_text}
                           </CardTitle>
+                          {question.image_url && (
+                            <div className="mt-2 rounded-lg overflow-hidden border max-w-xs">
+                              <img 
+                                src={question.image_url} 
+                                alt={`Savol ${idx + 1}`}
+                                className="w-full h-auto max-h-48 object-contain bg-muted/30"
+                              />
+                            </div>
+                          )}
                         </div>
                         {!isCorrect && (
                           <Button variant="ghost" size="icon" className="flex-shrink-0">

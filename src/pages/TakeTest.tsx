@@ -31,6 +31,7 @@ interface Choice {
 interface Question {
   id: string;
   question_text: string;
+  image_url: string | null;
   order_index: number;
   choices: Choice[];
 }
@@ -105,6 +106,7 @@ export default function TakeTest() {
       .select(`
         id,
         question_text,
+        image_url,
         order_index,
         choices (
           id,
@@ -289,9 +291,18 @@ export default function TakeTest() {
                 <span className="text-sm text-success font-medium">Javob berildi ✓</span>
               )}
             </div>
-            <CardTitle className="font-display text-xl leading-relaxed">
+            <CardTitle className="font-display text-xl leading-relaxed whitespace-pre-wrap">
               {currentQuestion.question_text}
             </CardTitle>
+            {currentQuestion.image_url && (
+              <div className="mt-4 rounded-xl overflow-hidden border bg-muted/30 max-w-md mx-auto">
+                <img 
+                  src={currentQuestion.image_url} 
+                  alt={`Savol ${currentIndex + 1} rasmi`}
+                  className="w-full h-auto max-h-72 object-contain"
+                />
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <RadioGroup

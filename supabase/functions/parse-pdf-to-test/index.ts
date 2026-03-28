@@ -26,9 +26,9 @@ class HttpError extends Error {
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
-const MAX_QUESTIONS = 100
-const AI_TIMEOUT_MS = 150000
-const PRIMARY_MODEL = "google/gemini-3-flash-preview"
+const MAX_QUESTIONS = 150
+const AI_TIMEOUT_MS = 180000
+const PRIMARY_MODEL = "google/gemini-2.5-flash"
 const FALLBACK_MODEL = "google/gemini-2.5-pro"
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -212,21 +212,51 @@ async function callAiGateway(params: {
         messages: [
           {
             role: "system",
-            content: `Sen test savollarini tahlil qiluvchi AI san. PDF dagi savollarni aniq ajratib ol.
+            content: `Sen professional test savollarini tahlil qiluvchi va ajratib oluvchi AI san. PDF hujjatlardan test savollarini aniq va to'liq ajratib olishing kerak.
 
-QOIDALAR:
-1. Har bir savolda 2-4 ta variant bo'lsin
-2. Faqat bitta to'g'ri javob bo'lsin
-3. Savollar asl tilda saqlansin
-4. Explanation 1-2 jumladan oshmasin
-5. Keraksiz matn, formuladagi shovqin va dublikatlarni olib tashla${answerKeyInstruction}`,
+ASSOSIY QOIDALAR:
+1. Har bir savolda 2-4 ta javob varianti bo'lsin
+2. Faqat BITTA to'g'ri javob bo'lsin
+3. Savollar asl tilda aynan saqlansin — hech narsa o'zgartirma
+4. Explanation qisqa va aniq bo'lsin (1-2 jumla)
+5. Dublikat savollarni olib tashla
+6. Savol raqamlarini olib tashla (1., 2. kabi)
+
+MATEMATIKA VA FORMULALAR:
+- Formulalarni Unicode belgilar bilan yoz: √, ², ³, ⁴, ⁿ, ₁, ₂, ±, ∞, π, α, β, γ, θ, Δ, Σ, ∫, ≤, ≥, ≠, ∈, ⊂, ∪, ∩
+- Kasrlarni a/b formatida yoz
+- Darajalarni x² yoki x^n formatida yoz
+- Misol: "√(x²+1) = 5" yoki "sin²α + cos²α = 1"
+
+RASMLAR VA CHIZMALAR MUHIM:
+- Agar savolda RASM, CHIZMA, GRAFIK, DIAGRAMMA, JADVAL yoki SHAKL bo'lsa — uni BATAFSIL tavsifla
+- Tavsifni savol matni oxiriga qo'sh, FORMAT: "\n\n📊 Rasmda: [batafsil tavsif]"
+- Geometrik shakllar uchun: barcha o'lchamlar, burchaklar, nuqtalar nomini yoz
+- Grafiklar uchun: o'qlar nomi, funksiya turi, muhim nuqtalar
+- Jadvallar uchun: barcha ustun va qatorlarni to'liq yoz
+- Elektr sxemalar uchun: barcha elementlar va ulanishlarni tavsifla
+- Biologik rasmlar uchun: organ/tuzilma qismlarini tavsifla
+- MISOL: "Uchburchak ABC da AB=5cm, BC=8cm, burchak B=60°. Uchburchak yuzini toping.\n\n📊 Rasmda: Uchburchak ABC. A — yuqori cho'qqi, B — chap pastda, C — o'ng pastda. AB tomoni 5 cm, BC tomoni 8 cm, B burchagi 60° deb belgilangan."
+
+JAVOB VARIANTLARI:
+- Variantlar A, B, C, D tartibida bo'lsin
+- Har bir variant to'liq va aniq bo'lsin
+- Agar variantda rasm bo'lsa, uni ham tavsifla${answerKeyInstruction}`,
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "PDF dagi test savollarini ajratib, tool orqali questions massivida qaytar.",
+                text: `Bu PDF da test savollari bor. Iltimos, BARCHA savollarni birma-bir ajratib ol.
+
+Har bir savol uchun:
+1. Savol matnini to'liq nusxala (formulalar, belgilar bilan)
+2. Agar savolda rasm/chizma bo'lsa — uni batafsil tavsiflab savol oxiriga qo'sh
+3. Barcha javob variantlarini aniq nusxala
+4. To'g'ri javobni belgilab, qisqa tushuntirish yoz
+
+Barcha savollarni extract_questions tool orqali qaytar.`,
               },
               {
                 type: "image_url",
@@ -242,7 +272,7 @@ QOIDALAR:
             type: "function",
             function: {
               name: "extract_questions",
-              description: "PDF dan test savollarini structured ko'rinishda qaytaradi",
+              description: "PDF dan test savollarini structured ko'rinishda qaytaradi. Rasmli savollar uchun rasm tavsifini savol matni ichiga qo'shadi.",
               parameters: {
                 type: "object",
                 properties: {
@@ -251,8 +281,14 @@ QOIDALAR:
                     items: {
                       type: "object",
                       properties: {
-                        question_text: { type: "string" },
-                        explanation: { type: "string" },
+                        question_text: {
+                          type: "string",
+                          description: "Savol matni. Agar savolda rasm/chizma bo'lsa, oxiriga '📊 Rasmda: [tavsif]' qo'shiladi",
+                        },
+                        explanation: {
+                          type: "string",
+                          description: "Noto'g'ri javob tanlanganda ko'rsatiladigan qisqa tushuntirish",
+                        },
                         choices: {
                           type: "array",
                           minItems: 2,
@@ -280,8 +316,8 @@ QOIDALAR:
           },
         ],
         tool_choice: { type: "function", function: { name: "extract_questions" } },
-        temperature: 0.1,
-        max_tokens: 12000,
+        temperature: 0.05,
+        max_tokens: 16000,
       }),
     })
 

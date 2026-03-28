@@ -3,11 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { CheckCircle, XCircle, Edit, Save, Loader2, Trash2, Eye, Rocket } from 'lucide-react';
+import { CheckCircle, XCircle, Edit, Save, Loader2, Trash2, Eye, Rocket, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Choice {
@@ -20,6 +21,7 @@ interface Choice {
 interface Question {
   id: string;
   question_text: string;
+  image_url: string | null;
   order_index: number;
   choices: Choice[];
 }
@@ -41,13 +43,14 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
   const [editChoices, setEditChoices] = useState<{ id: string; text: string; isCorrect: boolean }[]>([]);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [uploadingImageForId, setUploadingImageForId] = useState<string | null>(null);
 
   const fetchQuestions = async () => {
     if (!testId) return;
     setLoading(true);
     const { data } = await supabase
       .from('questions')
-      .select('id, question_text, order_index, choices(id, choice_text, is_correct, order_index)')
+      .select('id, question_text, image_url, order_index, choices(id, choice_text, is_correct, order_index)')
       .eq('test_id', testId)
       .order('order_index');
     
@@ -110,6 +113,53 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
     setEditChoices(prev => prev.map(c => ({ ...c, isCorrect: c.id === choiceId })));
   };
 
+  const handleImageUpload = async (questionId: string, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Faqat rasm fayllarini yuklash mumkin');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Rasm hajmi 5MB dan oshmasligi kerak');
+      return;
+    }
+
+    setUploadingImageForId(questionId);
+    
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+    const filePath = `questions/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('question-images')
+      .upload(filePath, file, { contentType: file.type });
+
+    if (uploadError) {
+      toast.error('Rasmni yuklashda xatolik');
+      setUploadingImageForId(null);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('question-images')
+      .getPublicUrl(filePath);
+
+    await supabase.from('questions')
+      .update({ image_url: urlData.publicUrl })
+      .eq('id', questionId);
+
+    await fetchQuestions();
+    setUploadingImageForId(null);
+    toast.success('Rasm qo\'shildi');
+  };
+
+  const removeImage = async (questionId: string) => {
+    await supabase.from('questions')
+      .update({ image_url: null })
+      .eq('id', questionId);
+    await fetchQuestions();
+    toast.success('Rasm o\'chirildi');
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -118,10 +168,10 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
             <div>
               <DialogTitle className="font-serif text-xl flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                Import natijasi - Ko'rib chiqish
+                Import natijasi — Ko'rib chiqish
               </DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {testTitle} • {questions.length} ta savol
+                {testTitle} • {questions.length} ta savol import qilindi
               </p>
             </div>
             <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
@@ -130,7 +180,14 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+        <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm">
+          <p className="text-muted-foreground">
+            💡 <strong>Maslahat:</strong> Har bir savolni ko'rib chiqing, kerak bo'lsa tahrirlang yoki rasm qo'shing. 
+            Tayyor bo'lgach "Nashr qilish" tugmasini bosing.
+          </p>
+        </div>
+
+        <ScrollArea className="flex-1 max-h-[55vh] pr-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -142,10 +199,11 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
                   <CardContent className="p-4">
                     {editingId === q.id ? (
                       <div className="space-y-3">
-                        <Input
+                        <Textarea
                           value={editText}
                           onChange={(e) => setEditText(e.target.value)}
                           className="font-medium"
+                          rows={3}
                         />
                         <div className="grid grid-cols-2 gap-2">
                           {editChoices.map((c) => (
@@ -180,7 +238,47 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
                           {idx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm mb-2">{q.question_text}</p>
+                          <p className="font-medium text-sm mb-2 whitespace-pre-wrap">{q.question_text}</p>
+                          
+                          {/* Image section */}
+                          {q.image_url ? (
+                            <div className="relative mb-3 inline-block">
+                              <div className="rounded-lg overflow-hidden border max-w-[200px]">
+                                <img src={q.image_url} alt={`Savol ${idx + 1}`} className="w-full h-auto max-h-32 object-contain bg-muted/30" />
+                              </div>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full"
+                                onClick={() => removeImage(q.id)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border border-dashed border-muted-foreground/20 cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-all mb-3">
+                              {uploadingImageForId === q.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <ImagePlus className="h-3 w-3 text-muted-foreground" />
+                              )}
+                              <span className="text-muted-foreground">
+                                {uploadingImageForId === q.id ? 'Yuklanmoqda...' : 'Rasm qo\'shish'}
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={uploadingImageForId === q.id}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleImageUpload(q.id, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          )}
+                          
                           <div className="grid grid-cols-2 gap-1.5">
                             {q.choices.map((c) => (
                               <div
@@ -221,7 +319,7 @@ export function ImportPreviewDialog({ open, onOpenChange, testId, testTitle, que
           </Button>
           <Button variant="premium" onClick={handlePublish} disabled={publishing || questions.length === 0} className="flex-1">
             {publishing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Rocket className="h-4 w-4 mr-2" />}
-            Nashr qilish
+            Nashr qilish ({questions.length} savol)
           </Button>
         </DialogFooter>
       </DialogContent>

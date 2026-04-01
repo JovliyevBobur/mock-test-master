@@ -357,6 +357,9 @@ export default function Admin() {
       if (pdfAnswerKeys.trim()) {
         formData.append('answer_keys', pdfAnswerKeys.trim());
       }
+      if (pdfAnswerKeyImage) {
+        formData.append('answer_key_image', pdfAnswerKeyImage);
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 180000);

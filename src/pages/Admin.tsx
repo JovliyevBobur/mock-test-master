@@ -105,6 +105,8 @@ export default function Admin() {
   const [pdfAccessCode, setPdfAccessCode] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfAnswerKeys, setPdfAnswerKeys] = useState('');
+  const [pdfAnswerKeyImage, setPdfAnswerKeyImage] = useState<File | null>(null);
+  const answerKeyImageRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importStage, setImportStage] = useState<ImportStage>(0);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
@@ -355,6 +357,9 @@ export default function Admin() {
       if (pdfAnswerKeys.trim()) {
         formData.append('answer_keys', pdfAnswerKeys.trim());
       }
+      if (pdfAnswerKeyImage) {
+        formData.append('answer_key_image', pdfAnswerKeyImage);
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 180000);
@@ -575,9 +580,9 @@ export default function Admin() {
     setPdfAccessCode('');
     setPdfFile(null);
     setPdfAnswerKeys('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    setPdfAnswerKeyImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (answerKeyImageRef.current) answerKeyImageRef.current.value = '';
   };
 
   const resetQuestionForm = () => {
@@ -762,7 +767,31 @@ export default function Admin() {
                           rows={6}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Javoblar kalitini kiritganingizda AI shu bo'yicha to'g'ri javoblarni belgilaydi. Kiritmasangiz AI o'zi aniqlaydi.
+                          Javoblar kalitini matn yoki rasm orqali kiritishingiz mumkin. AI shu bo'yicha to'g'ri javoblarni belgilaydi.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          🖼️ Javoblar kaliti rasmi (ixtiyoriy)
+                        </Label>
+                        <Input
+                          ref={answerKeyImageRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) setPdfAnswerKeyImage(f);
+                          }}
+                          className="h-11"
+                        />
+                        {pdfAnswerKeyImage && (
+                          <p className="text-sm text-success flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4" />
+                            {pdfAnswerKeyImage.name} tanlandi
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Javoblar kaliti rasmini yuklang - AI rasmdan javoblarni avtomatik o'qib oladi
                         </p>
                       </div>
                       <ImportProgressBar stage={importStage} />

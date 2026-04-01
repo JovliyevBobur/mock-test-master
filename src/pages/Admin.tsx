@@ -767,7 +767,31 @@ export default function Admin() {
                           rows={6}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Javoblar kalitini kiritganingizda AI shu bo'yicha to'g'ri javoblarni belgilaydi. Kiritmasangiz AI o'zi aniqlaydi.
+                          Javoblar kalitini matn yoki rasm orqali kiritishingiz mumkin. AI shu bo'yicha to'g'ri javoblarni belgilaydi.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          🖼️ Javoblar kaliti rasmi (ixtiyoriy)
+                        </Label>
+                        <Input
+                          ref={answerKeyImageRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) setPdfAnswerKeyImage(f);
+                          }}
+                          className="h-11"
+                        />
+                        {pdfAnswerKeyImage && (
+                          <p className="text-sm text-success flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4" />
+                            {pdfAnswerKeyImage.name} tanlandi
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Javoblar kaliti rasmini yuklang - AI rasmdan javoblarni avtomatik o'qib oladi
                         </p>
                       </div>
                       <ImportProgressBar stage={importStage} />

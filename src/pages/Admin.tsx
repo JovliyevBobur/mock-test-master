@@ -580,9 +580,9 @@ export default function Admin() {
     setPdfAccessCode('');
     setPdfFile(null);
     setPdfAnswerKeys('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    setPdfAnswerKeyImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (answerKeyImageRef.current) answerKeyImageRef.current.value = '';
   };
 
   const resetQuestionForm = () => {

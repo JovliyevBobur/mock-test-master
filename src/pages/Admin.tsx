@@ -105,6 +105,8 @@ export default function Admin() {
   const [pdfAccessCode, setPdfAccessCode] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfAnswerKeys, setPdfAnswerKeys] = useState('');
+  const [pdfAnswerKeyImage, setPdfAnswerKeyImage] = useState<File | null>(null);
+  const answerKeyImageRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importStage, setImportStage] = useState<ImportStage>(0);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);

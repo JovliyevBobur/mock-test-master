@@ -113,7 +113,6 @@ export default function Subjects() {
       .select('id, title, description, duration_minutes, subject, is_published, access_code')
       .eq('subject', subjectParam as any)
       .eq('is_published', true)
-      .is('access_code', null)
       .order('created_at', { ascending: false });
 
     if (data) {

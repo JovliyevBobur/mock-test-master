@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SUBJECTS, getSubjectById } from '@/lib/constants';
 import { ImportProgressBar, type ImportStage } from '@/components/admin/ImportProgressBar';
 import { ImportPreviewDialog } from '@/components/admin/ImportPreviewDialog';
+import { ManualTestCreator } from '@/components/admin/ManualTestCreator';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,

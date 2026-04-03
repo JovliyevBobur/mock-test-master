@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SUBJECTS, getSubjectById } from '@/lib/constants';
 import { ImportProgressBar, type ImportStage } from '@/components/admin/ImportProgressBar';
 import { ImportPreviewDialog } from '@/components/admin/ImportPreviewDialog';
+import { ManualTestCreator } from '@/components/admin/ManualTestCreator';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,
@@ -807,94 +808,11 @@ export default function Admin() {
                 </Dialog>
               )}
 
-              {/* New Test Dialog */}
-              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-                <DialogTrigger asChild>
-                  <Button variant="premium" size="lg">
-                    <Plus className="h-5 w-5 mr-2" />
-                    Yangi test
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle className="font-serif text-xl">
-                      {editingTest ? 'Testni tahrirlash' : 'Yangi test yaratish'}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <Label>Test nomi</Label>
-                      <Input 
-                        value={title} 
-                        onChange={(e) => setTitle(e.target.value)} 
-                        placeholder="Masalan: Matematika - Algebra"
-                        className="h-11"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tavsif</Label>
-                      <Textarea 
-                        value={description} 
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Test haqida qisqacha ma'lumot"
-                        rows={3}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Fan</Label>
-                        <Select value={subject} onValueChange={setSubject}>
-                          <SelectTrigger className="h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SUBJECTS.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.icon} {s.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Vaqt (daqiqa)</Label>
-                        <Input 
-                          type="number" 
-                          value={duration} 
-                          onChange={(e) => setDuration(Number(e.target.value))}
-                          min={5}
-                          max={180}
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
-                    {isSuperAdmin && (
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <Lock className="h-4 w-4" />
-                          Kirish kodi (ixtiyoriy)
-                        </Label>
-                        <Input 
-                          value={accessCode} 
-                          onChange={(e) => setAccessCode(e.target.value)}
-                          placeholder="Masalan: MATH2024"
-                          className="h-11"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Yopiq test yaratish uchun kod kiriting
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <DialogFooter className="mt-6">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Bekor</Button>
-                    <Button variant="premium" onClick={handleSaveTest} disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                      Saqlash
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              {/* New Test Button */}
+              <Button variant="premium" size="lg" onClick={() => setDialogOpen(true)}>
+                <Plus className="h-5 w-5 mr-2" />
+                Yangi test
+              </Button>
             </div>
           </div>
 
@@ -1335,6 +1253,14 @@ export default function Admin() {
           testTitle={importedTestTitle}
           questionsCount={importedQuestionsCount}
           onPublished={() => { fetchTests(); fetchStats(); }}
+        />
+
+        <ManualTestCreator
+          open={dialogOpen}
+          onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}
+          userId={user!.id}
+          isSuperAdmin={isSuperAdmin}
+          onCreated={() => { fetchTests(); fetchStats(); }}
         />
       </PageTransition>
     </Layout>

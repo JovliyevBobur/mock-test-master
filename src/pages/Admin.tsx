@@ -1254,6 +1254,14 @@ export default function Admin() {
           questionsCount={importedQuestionsCount}
           onPublished={() => { fetchTests(); fetchStats(); }}
         />
+
+        <ManualTestCreator
+          open={dialogOpen}
+          onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}
+          userId={user!.id}
+          isSuperAdmin={isSuperAdmin}
+          onCreated={() => { fetchTests(); fetchStats(); }}
+        />
       </PageTransition>
     </Layout>
   );

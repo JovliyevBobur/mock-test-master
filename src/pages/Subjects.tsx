@@ -78,8 +78,7 @@ export default function Subjects() {
     const { data: testsData } = await supabase
       .from('tests')
       .select('id, subject')
-      .eq('is_published', true)
-      .is('access_code', null);
+      .eq('is_published', true);
 
     if (!testsData) return;
 

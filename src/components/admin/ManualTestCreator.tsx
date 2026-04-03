@@ -130,7 +130,7 @@ export function ManualTestCreator({ open, onOpenChange, userId, isSuperAdmin, on
           subject: subject as any,
           duration_minutes: duration,
           created_by: userId,
-          is_published: false,
+          is_published: true,
           access_code: accessCode.trim() || null,
         })
         .select('id')

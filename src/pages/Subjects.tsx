@@ -246,10 +246,26 @@ export default function Subjects() {
                       <Button 
                         variant="premium" 
                         className="w-full group/btn"
-                        onClick={() => handleStartTest(test)}
+                        onClick={() => {
+                          if (test.access_code) {
+                            setSelectedCodedTest(test);
+                            setCodeDialogOpen(true);
+                          } else {
+                            handleStartTest(test);
+                          }
+                        }}
                       >
-                        <Play className="h-4 w-4 mr-2 group-hover/btn:scale-110 transition-transform" />
-                        Testni boshlash
+                        {test.access_code ? (
+                          <>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Kodni kiritish
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2 group-hover/btn:scale-110 transition-transform" />
+                            Testni boshlash
+                          </>
+                        )}
                       </Button>
                     </CardContent>
                   </Card>

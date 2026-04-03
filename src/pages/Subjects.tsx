@@ -78,8 +78,7 @@ export default function Subjects() {
     const { data: testsData } = await supabase
       .from('tests')
       .select('id, subject')
-      .eq('is_published', true)
-      .is('access_code', null);
+      .eq('is_published', true);
 
     if (!testsData) return;
 
@@ -113,7 +112,6 @@ export default function Subjects() {
       .select('id, title, description, duration_minutes, subject, is_published, access_code')
       .eq('subject', subjectParam as any)
       .eq('is_published', true)
-      .is('access_code', null)
       .order('created_at', { ascending: false });
 
     if (data) {
@@ -248,10 +246,26 @@ export default function Subjects() {
                       <Button 
                         variant="premium" 
                         className="w-full group/btn"
-                        onClick={() => handleStartTest(test)}
+                        onClick={() => {
+                          if (test.access_code) {
+                            setSelectedCodedTest(test);
+                            setCodeDialogOpen(true);
+                          } else {
+                            handleStartTest(test);
+                          }
+                        }}
                       >
-                        <Play className="h-4 w-4 mr-2 group-hover/btn:scale-110 transition-transform" />
-                        Testni boshlash
+                        {test.access_code ? (
+                          <>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Kodni kiritish
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2 group-hover/btn:scale-110 transition-transform" />
+                            Testni boshlash
+                          </>
+                        )}
                       </Button>
                     </CardContent>
                   </Card>

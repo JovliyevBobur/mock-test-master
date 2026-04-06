@@ -157,7 +157,6 @@ function extractQuestionsFromTextContent(content: unknown): ParsedQuestion[] {
   }
 }
 
-// Extract answer keys from an image using AI vision
 async function extractAnswerKeysFromImage(
   base64Image: string,
   mimeType: string,
@@ -409,7 +408,6 @@ Deno.serve(async (req) => {
       
       if (extractedKeys) {
         console.log("Extracted answer keys from image:", extractedKeys.substring(0, 200))
-        // Combine with any text answer keys
         answer_keys = answer_keys?.trim() 
           ? `${answer_keys}\n${extractedKeys}` 
           : extractedKeys
@@ -417,6 +415,34 @@ Deno.serve(async (req) => {
     }
 
     const answerKeyMap = parseAnswerKeys(answer_keys)
+
+    // Auth: use getUser instead of getClaims
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
+
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) throw new Error("Server sozlamalari to'liq emas")
+
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Avtorizatsiya kerak" }, 401)
+
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    })
+
+    const { data: userData, error: userError } = await authClient.auth.getUser()
+    const userId = userData?.user?.id
+
+    if (userError || !userId) return jsonResponse({ error: "Foydalanuvchi topilmadi" }, 401)
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey)
+
+    const { data: isSuperAdmin, error: roleError } = await adminClient.rpc("has_role", {
+      _user_id: userId,
+      _role: "super_admin",
+    })
+
+    if (roleError || !isSuperAdmin) return jsonResponse({ error: "Super Admin huquqi kerak" }, 403)
 
     let aiQuestions = await callAiGateway({
       model: PRIMARY_MODEL,
@@ -426,6 +452,7 @@ Deno.serve(async (req) => {
     })
 
     if (aiQuestions.length === 0) {
+      console.log("Primary model returned 0 questions, trying fallback...")
       aiQuestions = await callAiGateway({
         model: FALLBACK_MODEL,
         lovableApiKey,
@@ -439,34 +466,6 @@ Deno.serve(async (req) => {
     if (parsedQuestions.length === 0) {
       return jsonResponse({ error: "Savollar topilmadi. PDF formatini tekshiring." }, 400)
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
-
-    if (!supabaseUrl || !serviceRoleKey || !anonKey) throw new Error("Server sozlamalari to'liq emas")
-
-    const authHeader = req.headers.get("authorization")
-    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Avtorizatsiya kerak" }, 401)
-
-    const token = authHeader.replace("Bearer ", "").trim()
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
-
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token)
-    const userId = claimsData?.claims?.sub
-
-    if (claimsError || !userId) return jsonResponse({ error: "Foydalanuvchi topilmadi" }, 401)
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey)
-
-    const { data: isSuperAdmin, error: roleError } = await adminClient.rpc("has_role", {
-      _user_id: userId,
-      _role: "super_admin",
-    })
-
-    if (roleError || !isSuperAdmin) return jsonResponse({ error: "Super Admin huquqi kerak" }, 403)
 
     const { data: testData, error: testError } = await adminClient
       .from("tests")

@@ -675,135 +675,162 @@ export default function Admin() {
                       PDF Import
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle className="font-serif text-xl flex items-center gap-2">
-                        <FileText className="h-6 w-6" />
-                        PDF dan test import qilish
-                      </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div className="space-y-2">
-                        <Label>Test nomi</Label>
-                        <Input 
-                          value={pdfTitle} 
-                          onChange={(e) => setPdfTitle(e.target.value)} 
-                          placeholder="Masalan: Matematika - Algebra testlari"
-                          className="h-11"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Fan</Label>
-                          <Select value={pdfSubject} onValueChange={setPdfSubject}>
-                            <SelectTrigger className="h-11">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SUBJECTS.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>
-                                  {s.icon} {s.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Vaqt (daqiqa)</Label>
-                          <Input 
-                            type="number" 
-                            value={pdfDuration} 
-                            onChange={(e) => setPdfDuration(Number(e.target.value))}
-                            min={5}
-                            max={180}
-                            className="h-11"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <Lock className="h-4 w-4" />
-                          Kirish kodi (ixtiyoriy - yopiq test uchun)
-                        </Label>
-                        <Input 
-                          value={pdfAccessCode} 
-                          onChange={(e) => setPdfAccessCode(e.target.value)}
-                          placeholder="Masalan: MATH2024"
-                          className="h-11"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Agar kod kiritilsa, faqat shu kodni bilgan foydalanuvchilar testni ishlaydi
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>PDF fayl yuklash</Label>
-                        <Input 
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".pdf"
-                          onChange={handleFileUpload}
-                          className="h-11"
-                        />
-                        {pdfFile && (
-                          <p className="text-sm text-success flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4" />
-                            {pdfFile.name} tanlandi
-                          </p>
-                        )}
-                      </div>
-                      <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
-                        <p className="text-sm text-muted-foreground">
-                          <strong>AI avtomatik tahlil qiladi:</strong> PDF dagi savollar, javob variantlari va to'g'ri javoblarni aniqlaydi. 
-                          Noto'g'ri javob bergan foydalanuvchilarga tushuntirish ko'rsatiladi.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          📝 Javoblar kaliti (ixtiyoriy)
-                        </Label>
-                        <Textarea
-                          value={pdfAnswerKeys}
-                          onChange={(e) => setPdfAnswerKeys(e.target.value)}
-                          placeholder={"Masalan:\n1-B\n2-A\n3-D\n4-C\n5-A\n...\n\nYoki: 1B 2A 3D 4C 5A"}
-                          rows={6}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Javoblar kalitini matn yoki rasm orqali kiritishingiz mumkin. AI shu bo'yicha to'g'ri javoblarni belgilaydi.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          🖼️ Javoblar kaliti rasmi (ixtiyoriy)
-                        </Label>
-                        <Input
-                          ref={answerKeyImageRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) setPdfAnswerKeyImage(f);
-                          }}
-                          className="h-11"
-                        />
-                        {pdfAnswerKeyImage && (
-                          <p className="text-sm text-success flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4" />
-                            {pdfAnswerKeyImage.name} tanlandi
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          Javoblar kaliti rasmini yuklang - AI rasmdan javoblarni avtomatik o'qib oladi
-                        </p>
-                      </div>
-                      <ImportProgressBar stage={importStage} />
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+                    <div className="px-6 pt-6 pb-4 border-b">
+                      <DialogHeader>
+                        <DialogTitle className="font-serif text-xl flex items-center gap-2">
+                          <FileText className="h-5 w-5 text-primary" />
+                          PDF dan test import qilish
+                        </DialogTitle>
+                      </DialogHeader>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        AI avtomatik savollarni tahlil qiladi va test yaratadi
+                      </p>
                     </div>
-                    <DialogFooter className="mt-6">
-                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)} disabled={importing}>Bekor</Button>
-                      <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile}>
-                        {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+
+                    <ScrollArea className="flex-1 px-6 py-4">
+                      <div className="space-y-5">
+                        {/* PDF File Upload - Primary action */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">PDF fayl *</Label>
+                          <div 
+                            className={cn(
+                              "relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer hover:border-primary/40",
+                              pdfFile ? "border-success/40 bg-success/5" : "border-border"
+                            )}
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <Input 
+                              ref={fileInputRef}
+                              type="file"
+                              accept=".pdf"
+                              onChange={handleFileUpload}
+                              className="hidden"
+                            />
+                            {pdfFile ? (
+                              <div className="flex items-center justify-center gap-3">
+                                <div className="p-2 rounded-lg bg-success/10">
+                                  <CheckCircle className="h-6 w-6 text-success" />
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-medium text-sm">{pdfFile.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {(pdfFile.size / 1024 / 1024).toFixed(2)} MB • Boshqa fayl tanlash uchun bosing
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                                <p className="text-sm font-medium">PDF faylni tanlang</p>
+                                <p className="text-xs text-muted-foreground mt-1">Maksimal hajm: 20MB</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-semibold">Test nomi *</Label>
+                            <Input 
+                              value={pdfTitle} 
+                              onChange={(e) => setPdfTitle(e.target.value)} 
+                              placeholder="Masalan: Algebra testlari"
+                              className="h-11"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-semibold">Fan</Label>
+                            <Select value={pdfSubject} onValueChange={setPdfSubject}>
+                              <SelectTrigger className="h-11">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SUBJECTS.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    {s.icon} {s.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-semibold">Vaqt (daqiqa)</Label>
+                            <Input 
+                              type="number" 
+                              value={pdfDuration} 
+                              onChange={(e) => setPdfDuration(Number(e.target.value))}
+                              min={5}
+                              max={180}
+                              className="h-11"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-semibold flex items-center gap-1.5">
+                              <Lock className="h-3.5 w-3.5" />
+                              Kirish kodi
+                            </Label>
+                            <Input 
+                              value={pdfAccessCode} 
+                              onChange={(e) => setPdfAccessCode(e.target.value)}
+                              placeholder="Ixtiyoriy"
+                              className="h-11"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Answer keys section - collapsible feel */}
+                        <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
+                          <p className="text-sm font-semibold flex items-center gap-2">
+                            📝 Javoblar kaliti (ixtiyoriy)
+                          </p>
+                          <Textarea
+                            value={pdfAnswerKeys}
+                            onChange={(e) => setPdfAnswerKeys(e.target.value)}
+                            placeholder={"1-B\n2-A\n3-D\n4-C\n5-A"}
+                            rows={4}
+                            className="bg-background"
+                          />
+                          
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              🖼️ Yoki rasm orqali yuklang
+                            </Label>
+                            <Input
+                              ref={answerKeyImageRef}
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) setPdfAnswerKeyImage(f);
+                              }}
+                              className="h-10 text-sm"
+                            />
+                            {pdfAnswerKeyImage && (
+                              <p className="text-xs text-success flex items-center gap-1.5">
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                {pdfAnswerKeyImage.name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <ImportProgressBar stage={importStage} />
+                      </div>
+                    </ScrollArea>
+
+                    <div className="px-6 py-4 border-t flex gap-3">
+                      <Button variant="outline" onClick={() => setPdfDialogOpen(false)} disabled={importing} className="flex-1">
+                        Bekor
+                      </Button>
+                      <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile || !pdfTitle.trim()} className="flex-1 gap-2">
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                         Import qilish
                       </Button>
-                    </DialogFooter>
+                    </div>
                   </DialogContent>
                 </Dialog>
               )}

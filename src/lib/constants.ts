@@ -7,7 +7,7 @@ export const SUBJECTS = [
   { id: 'english', name: 'Ingliz tili', icon: 'https://img.icons8.com/color/96/great-britain-circular.png', iconType: 'image' as const, color: 'subject-english' },
   { id: 'history', name: 'Tarix', icon: '📜', iconType: 'emoji' as const, color: 'subject-history' },
   { id: 'russian', name: 'Rus tili', icon: 'https://img.icons8.com/color/96/russian-federation-circular.png', iconType: 'image' as const, color: 'subject-russian' },
-  { id: 'uzbek', name: 'Ona tili', icon: 'https://img.icons8.com/color/96/uzbekistn-circular.png', iconType: 'image' as const, color: 'subject-uzbek' },
+  { id: 'uzbek', name: 'Ona tili', icon: 'https://img.icons8.com/color/96/uzbekistan-circular.png', iconType: 'image' as const, color: 'subject-uzbek' },
 ] as const;
 
 export type SubjectId = typeof SUBJECTS[number]['id'];

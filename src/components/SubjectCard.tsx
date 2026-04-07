@@ -7,10 +7,11 @@ interface SubjectCardProps {
   id: string;
   name: string;
   icon: string;
+  iconType?: 'emoji' | 'image';
   testCount?: number;
 }
 
-export function SubjectCard({ id, name, icon, testCount = 0 }: SubjectCardProps) {
+export function SubjectCard({ id, name, icon, iconType = 'emoji', testCount = 0 }: SubjectCardProps) {
   return (
     <Link to={`/subjects/${id}`}>
       <Card className={cn(
@@ -19,8 +20,12 @@ export function SubjectCard({ id, name, icon, testCount = 0 }: SubjectCardProps)
       )}>
         <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
         <CardContent className="flex flex-col items-center justify-center p-8 text-center">
-          <div className="text-5xl mb-4 transform group-hover:scale-110 transition-transform duration-300">
-            {icon}
+          <div className="mb-4 transform group-hover:scale-110 transition-transform duration-300">
+            {iconType === 'image' ? (
+              <img src={icon} alt={name} className="w-14 h-14 object-contain" />
+            ) : (
+              <span className="text-5xl">{icon}</span>
+            )}
           </div>
           <h3 className="font-display text-xl font-bold mb-2">{name}</h3>
           <p className="text-sm text-muted-foreground">

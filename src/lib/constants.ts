@@ -1,13 +1,13 @@
 export const SUBJECTS = [
-  { id: 'math', name: 'Matematika', icon: '📐', color: 'subject-math' },
-  { id: 'physics', name: 'Fizika', icon: '⚛️', color: 'subject-physics' },
-  { id: 'chemistry', name: 'Kimyo', icon: '🧪', color: 'subject-chemistry' },
-  { id: 'biology', name: 'Biologiya', icon: '🧬', color: 'subject-biology' },
-  { id: 'informatics', name: 'Informatika', icon: '💻', color: 'subject-informatics' },
-  { id: 'english', name: 'Ingliz tili', icon: '🇬🇧', color: 'subject-english' },
-  { id: 'history', name: 'Tarix', icon: '📜', color: 'subject-history' },
-  { id: 'russian', name: 'Rus tili', icon: '🇷🇺', color: 'subject-russian' },
-  { id: 'uzbek', name: 'Ona tili', icon: '🇺🇿', color: 'subject-uzbek' },
+  { id: 'math', name: 'Matematika', icon: '📐', iconType: 'emoji' as const, color: 'subject-math' },
+  { id: 'physics', name: 'Fizika', icon: '⚛️', iconType: 'emoji' as const, color: 'subject-physics' },
+  { id: 'chemistry', name: 'Kimyo', icon: '🧪', iconType: 'emoji' as const, color: 'subject-chemistry' },
+  { id: 'biology', name: 'Biologiya', icon: '🧬', iconType: 'emoji' as const, color: 'subject-biology' },
+  { id: 'informatics', name: 'Informatika', icon: '💻', iconType: 'emoji' as const, color: 'subject-informatics' },
+  { id: 'english', name: 'Ingliz tili', icon: 'https://img.icons8.com/color/96/great-britain-circular.png', iconType: 'image' as const, color: 'subject-english' },
+  { id: 'history', name: 'Tarix', icon: '📜', iconType: 'emoji' as const, color: 'subject-history' },
+  { id: 'russian', name: 'Rus tili', icon: 'https://img.icons8.com/color/96/russian-federation-circular.png', iconType: 'image' as const, color: 'subject-russian' },
+  { id: 'uzbek', name: 'Ona tili', icon: 'https://img.icons8.com/color/96/uzbekistn-circular.png', iconType: 'image' as const, color: 'subject-uzbek' },
 ] as const;
 
 export type SubjectId = typeof SUBJECTS[number]['id'];

@@ -190,8 +190,12 @@ export default function Subjects() {
               <Button variant="outline" size="icon" onClick={() => navigate('/subjects')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div className="flex items-center gap-4">
-                <div className="text-5xl">{selectedSubject.icon}</div>
+                <div className="flex items-center gap-4">
+                  {selectedSubject.iconType === 'image' ? (
+                    <img src={selectedSubject.icon} alt={selectedSubject.name} className="w-14 h-14 object-contain" />
+                  ) : (
+                    <div className="text-5xl">{selectedSubject.icon}</div>
+                  )}
                 <div>
                   <h1 className="font-serif text-3xl font-bold">{selectedSubject.name}</h1>
                   <p className="text-muted-foreground">

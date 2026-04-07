@@ -367,6 +367,7 @@ export default function Subjects() {
                   id={subject.id}
                   name={subject.name}
                   icon={subject.icon}
+                  iconType={subject.iconType}
                   testCount={subjectStats[subject.id]?.testCount || 0}
                 />
               </div>

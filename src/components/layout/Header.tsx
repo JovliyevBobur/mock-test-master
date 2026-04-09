@@ -37,6 +37,8 @@ export function Header() {
     { href: '/subjects', label: 'Fanlar' },
     { href: '/leaderboard', label: 'Reyting' },
     ...(user ? [{ href: '/dashboard', label: 'Dashboard' }] : []),
+    { href: '/about', label: 'Biz haqimizda' },
+    { href: '/contact', label: 'Aloqa' },
   ];
 
   return (

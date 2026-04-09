@@ -18,6 +18,8 @@ import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +38,8 @@ const App = () => (
               <Route path="/subjects" element={<Subjects />} />
               <Route path="/subjects/:subjectId" element={<Subjects />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
               
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/test/:testId" element={<ProtectedRoute><TakeTest /></ProtectedRoute>} />

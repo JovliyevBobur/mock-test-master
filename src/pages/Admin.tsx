@@ -115,6 +115,8 @@ export default function Admin() {
   const [importedTestId, setImportedTestId] = useState<string | null>(null);
   const [importedTestTitle, setImportedTestTitle] = useState('');
   const [importedQuestionsCount, setImportedQuestionsCount] = useState(0);
+  const [importError, setImportError] = useState<{ message: string; stage?: string; debug?: unknown; attempt?: number } | null>(null);
+  const [importAttempt, setImportAttempt] = useState(0);
 
   // Question form state
   const [newQuestionText, setNewQuestionText] = useState('');
@@ -324,7 +326,7 @@ export default function Admin() {
     fetchStats();
   };
 
-  const handlePdfImport = async () => {
+  const handlePdfImport = async (retryNum = 0): Promise<void> => {
     if (!pdfTitle.trim() || !pdfFile) {
       toast.error('Test nomini va PDF faylni tanlang');
       return;
@@ -336,15 +338,21 @@ export default function Admin() {
     }
 
     if (!pdfFile.name.toLowerCase().endsWith('.pdf')) {
-      toast.error('Faqat PDF fayl yuklash mumkin');
+      toast.error("Faqat PDF formatdagi fayl qabul qilinadi (.pdf)");
       return;
     }
 
     if (pdfFile.size > MAX_PDF_SIZE) {
-      toast.error('PDF hajmi 20MB dan oshmasligi kerak');
+      toast.error(`PDF hajmi 20MB dan oshmasligi kerak (sizniki: ${(pdfFile.size / 1024 / 1024).toFixed(1)}MB)`);
+      return;
+    }
+    if (pdfFile.size < 1024) {
+      toast.error("PDF juda kichik yoki bo'sh ko'rinadi");
       return;
     }
 
+    setImportError(null);
+    setImportAttempt(retryNum + 1);
     setImporting(true);
     setImportStage(1);
     try {
@@ -382,13 +390,16 @@ export default function Admin() {
       setImportStage(3);
 
       const rawResponse = await response.text();
-      const data = rawResponse ? JSON.parse(rawResponse) : {};
+      let data: any = {};
+      try { data = rawResponse ? JSON.parse(rawResponse) : {}; }
+      catch { data = { error: `Server javobi JSON emas: ${rawResponse.slice(0, 200)}` }; }
 
       if (!response.ok) {
-        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko'ring.");
-        if (response.status === 402) throw new Error("AI krediti tugagan.");
-        if (response.status === 413) throw new Error("PDF juda katta. Hajmini kamaytirib qayta yuklang.");
-        throw new Error(data.error || 'Import xatoligi');
+        const err: any = new Error(data?.error || `HTTP ${response.status}`);
+        err.status = response.status;
+        err.stage = data?.stage;
+        err.debug = data?.debug;
+        throw err;
       }
 
       setImportStage(4);
@@ -401,6 +412,8 @@ export default function Admin() {
         setPreviewDialogOpen(true);
         setImportStage(0);
         setImporting(false);
+        setImportError(null);
+        setImportAttempt(0);
         resetPdfForm();
         fetchTests();
         fetchStats();
@@ -408,11 +421,23 @@ export default function Admin() {
     } catch (error: any) {
       setImportStage(0);
       setImporting(false);
-      if (error?.name === 'AbortError') {
-        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko\'ring.');
-      } else {
-        toast.error(error.message || 'Import xatoligi');
+
+      const isAbort = error?.name === 'AbortError';
+      const status: number | undefined = error?.status;
+      const transient = isAbort || status === 429 || status === 502 || status === 503 || status === 504 || error?.stage === 'ai-empty';
+      const message = isAbort
+        ? 'Import vaqti tugadi (180s). Kichikroq PDF yoki kamroq sahifa bilan urinib ko\'ring.'
+        : (error.message || 'Import xatoligi');
+
+      // Auto-retry once for transient errors
+      if (transient && retryNum < 1) {
+        toast.warning(`${message} — avtomatik qayta urinish... (${retryNum + 2}/2)`);
+        setTimeout(() => { handlePdfImport(retryNum + 1); }, 2000);
+        return;
       }
+
+      setImportError({ message, stage: error?.stage, debug: error?.debug, attempt: retryNum + 1 });
+      toast.error(message);
     }
   };
 
@@ -822,6 +847,48 @@ export default function Admin() {
                         </div>
 
                         <ImportProgressBar stage={importStage} />
+
+                        {importError && (
+                          <div className="mt-4 p-4 rounded-xl border border-destructive/30 bg-destructive/5 space-y-3 animate-fade-up">
+                            <div className="flex items-start gap-3">
+                              <XCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-destructive">Import muvaffaqiyatsiz tugadi</p>
+                                <p className="text-sm mt-1 break-words">{importError.message}</p>
+                                <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                                  {importError.stage && (
+                                    <Badge variant="outline" className="border-destructive/40 text-destructive">
+                                      bosqich: {importError.stage}
+                                    </Badge>
+                                  )}
+                                  {importError.attempt && (
+                                    <Badge variant="outline">urinish: {importError.attempt}/2</Badge>
+                                  )}
+                                </div>
+                                {importError.debug !== undefined && importError.debug !== null && (
+                                  <details className="mt-2">
+                                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                                      Debug ma'lumotlari
+                                    </summary>
+                                    <pre className="mt-2 text-[11px] bg-muted/50 p-2 rounded overflow-auto max-h-32 whitespace-pre-wrap break-all">
+                                      {typeof importError.debug === 'string' ? importError.debug : JSON.stringify(importError.debug, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-3"
+                                  onClick={() => handlePdfImport(0)}
+                                  disabled={importing}
+                                >
+                                  <Upload className="h-3.5 w-3.5 mr-2" />
+                                  Qayta urinish
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </ScrollArea>
 
@@ -829,7 +896,7 @@ export default function Admin() {
                       <Button variant="outline" onClick={() => setPdfDialogOpen(false)} disabled={importing} className="flex-1">
                         Bekor
                       </Button>
-                      <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile || !pdfTitle.trim()} className="flex-1 gap-2">
+                      <Button variant="premium" onClick={() => handlePdfImport(0)} disabled={importing || !pdfFile || !pdfTitle.trim()} className="flex-1 gap-2">
                         {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                         Import qilish
                       </Button>

@@ -361,6 +361,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    log("start", `method=${req.method} ct=${req.headers.get("content-type") ?? ""}`)
     const formData = await req.formData()
     const file = formData.get("file") as File | null
     const subject = formData.get("subject") as string
@@ -371,38 +372,51 @@ Deno.serve(async (req) => {
     const answer_key_image = formData.get("answer_key_image") as File | null
 
     if (!file || !subject || !title) {
-      return jsonResponse({ error: "file, subject va title majburiy" }, 400)
+      return jsonResponse({ error: "Fayl, fan va sarlavha majburiy", stage: "validate-input" }, 400)
     }
 
     if (title.length < 3 || title.length > 200) {
-      return jsonResponse({ error: "Test nomi 3-200 belgi orasida bo'lishi kerak" }, 400)
+      return jsonResponse({ error: "Test nomi 3-200 belgi orasida bo'lishi kerak", stage: "validate-input" }, 400)
     }
 
     if (isNaN(duration_minutes) || duration_minutes < 5 || duration_minutes > 240) {
-      return jsonResponse({ error: "Davomiyligi 5-240 daqiqa orasida bo'lishi kerak" }, 400)
+      return jsonResponse({ error: "Davomiyligi 5-240 daqiqa orasida bo'lishi kerak", stage: "validate-input" }, 400)
     }
 
     if (access_code && (access_code.length < 4 || access_code.length > 20)) {
-      return jsonResponse({ error: "Kirish kodi 4-20 belgi orasida bo'lishi kerak" }, 400)
+      return jsonResponse({ error: "Kirish kodi 4-20 belgi orasida bo'lishi kerak", stage: "validate-input" }, 400)
     }
 
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      return jsonResponse({ error: "Faqat PDF fayl yuklash mumkin" }, 400)
+      return jsonResponse({ error: "Faqat PDF formatdagi fayl yuklash mumkin", stage: "validate-format" }, 400)
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return jsonResponse({ error: `Fayl juda katta. Maksimal hajm: ${MAX_FILE_SIZE / 1024 / 1024}MB` }, 400)
+      return jsonResponse({ error: `Fayl juda katta (${(file.size / 1024 / 1024).toFixed(1)}MB). Maksimal hajm: ${MAX_FILE_SIZE / 1024 / 1024}MB`, stage: "validate-size" }, 400)
     }
+
+    log("validate", `file=${file.name} size=${file.size} subject=${subject} title="${title}"`)
 
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
 
     if (uint8Array.length < 4 || uint8Array[0] !== 0x25 || uint8Array[1] !== 0x50 || uint8Array[2] !== 0x44 || uint8Array[3] !== 0x46) {
-      return jsonResponse({ error: "Fayl haqiqiy PDF formatida emas" }, 400)
+      return jsonResponse({ error: "Fayl haqiqiy PDF formatida emas (PDF magic bytes topilmadi)", stage: "validate-format" }, 400)
+    }
+
+    // Rough page count estimate by counting "/Type /Page" markers in raw bytes
+    let pageCount = 0
+    try {
+      const text = new TextDecoder("latin1").decode(uint8Array.subarray(0, Math.min(uint8Array.length, 5_000_000)))
+      pageCount = (text.match(/\/Type\s*\/Page[^s]/g) || []).length
+    } catch { /* ignore */ }
+    log("validate", `pdf-ok pages~=${pageCount}`)
+    if (pageCount > 100) {
+      return jsonResponse({ error: `PDF juda ko'p sahifali (~${pageCount}). 100 sahifagacha qo'llab-quvvatlanadi.`, stage: "validate-pages", debug: { pageCount } }, 400)
     }
 
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")
-    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY topilmadi")
+    if (!lovableApiKey) throw new HttpError(500, "Server sozlamasi: LOVABLE_API_KEY topilmadi", "config")
 
     const base64Content = encodeBase64Chunked(uint8Array)
 
@@ -413,11 +427,11 @@ Deno.serve(async (req) => {
       const imageBase64 = encodeBase64Chunked(imageBytes)
       const imageMime = answer_key_image.type || "image/png"
       
-      console.log("Extracting answer keys from image...")
+      log("answer-key-image", `extracting from ${imageMime} size=${answer_key_image.size}`)
       const extractedKeys = await extractAnswerKeysFromImage(imageBase64, imageMime, lovableApiKey)
       
       if (extractedKeys) {
-        console.log("Extracted answer keys from image:", extractedKeys.substring(0, 200))
+        log("answer-key-image", `extracted ${extractedKeys.length} chars`)
         answer_keys = answer_keys?.trim() 
           ? `${answer_keys}\n${extractedKeys}` 
           : extractedKeys
@@ -431,10 +445,10 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
 
-    if (!supabaseUrl || !serviceRoleKey || !anonKey) throw new Error("Server sozlamalari to'liq emas")
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) throw new HttpError(500, "Server sozlamalari to'liq emas", "config")
 
     const authHeader = req.headers.get("authorization")
-    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Avtorizatsiya kerak" }, 401)
+    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Avtorizatsiya kerak (Bearer token topilmadi)", stage: "auth" }, 401)
 
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -443,7 +457,10 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await authClient.auth.getUser()
     const userId = userData?.user?.id
 
-    if (userError || !userId) return jsonResponse({ error: "Foydalanuvchi topilmadi" }, 401)
+    if (userError || !userId) {
+      log("auth", "user lookup failed", userError?.message)
+      return jsonResponse({ error: "Foydalanuvchi topilmadi yoki sessiya tugagan", stage: "auth", debug: userError?.message }, 401)
+    }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
 
@@ -452,29 +469,40 @@ Deno.serve(async (req) => {
       _role: "super_admin",
     })
 
-    if (roleError || !isSuperAdmin) return jsonResponse({ error: "Super Admin huquqi kerak" }, 403)
+    if (roleError || !isSuperAdmin) {
+      log("auth", `role check failed err=${roleError?.message} isSuper=${isSuperAdmin}`)
+      return jsonResponse({ error: "Super Admin huquqi kerak", stage: "auth", debug: roleError?.message }, 403)
+    }
 
+    log("ai", `calling primary model=${PRIMARY_MODEL}`)
     let aiQuestions = await callAiGateway({
       model: PRIMARY_MODEL,
       lovableApiKey,
       base64Pdf: base64Content,
       answerKeys: answer_keys,
     })
+    log("ai", `primary returned ${aiQuestions.length} questions`)
 
     if (aiQuestions.length === 0) {
-      console.log("Primary model returned 0 questions, trying fallback...")
+      log("ai", `falling back to ${FALLBACK_MODEL}`)
       aiQuestions = await callAiGateway({
         model: FALLBACK_MODEL,
         lovableApiKey,
         base64Pdf: base64Content,
         answerKeys: answer_keys,
       })
+      log("ai", `fallback returned ${aiQuestions.length} questions`)
     }
 
     const parsedQuestions = normalizeQuestions(aiQuestions, answerKeyMap)
+    log("normalize", `normalized=${parsedQuestions.length} (raw=${aiQuestions.length})`)
 
     if (parsedQuestions.length === 0) {
-      return jsonResponse({ error: "Savollar topilmadi. PDF formatini tekshiring." }, 400)
+      return jsonResponse({
+        error: "AI savollarni ajrata olmadi. PDF aniq matnli (skan emas) ekanini va savollarda variantlar borligini tekshiring.",
+        stage: "ai-empty",
+        debug: { primary_raw: aiQuestions.length, pageCount },
+      }, 422)
     }
 
     const { data: testData, error: testError } = await adminClient
@@ -491,7 +519,10 @@ Deno.serve(async (req) => {
       .select("id")
       .single()
 
-    if (testError || !testData) throw new Error(`Test yaratishda xatolik: ${testError?.message}`)
+    if (testError || !testData) {
+      log("db-test", `insert failed: ${testError?.message}`)
+      throw new HttpError(500, `Test yaratishda DB xatolik: ${testError?.message ?? "noma'lum"}`, "db-test", testError)
+    }
 
     const questionsPayload = parsedQuestions.map((q, i) => ({
       test_id: testData.id,
@@ -505,7 +536,8 @@ Deno.serve(async (req) => {
       .select("id, order_index")
 
     if (questionsInsertError || !insertedQuestions?.length) {
-      throw new Error(`Savollarni saqlashda xatolik: ${questionsInsertError?.message}`)
+      log("db-questions", `insert failed: ${questionsInsertError?.message}`)
+      throw new HttpError(500, `Savollarni saqlashda xatolik: ${questionsInsertError?.message ?? "noma'lum"}`, "db-questions", questionsInsertError)
     }
 
     const questionIdByOrder = new Map<number, string>(
@@ -526,9 +558,13 @@ Deno.serve(async (req) => {
     for (let i = 0; i < choicesPayload.length; i += 500) {
       const chunk = choicesPayload.slice(i, i + 500)
       const { error: choicesError } = await adminClient.from("choices").insert(chunk)
-      if (choicesError) throw new Error(`Javob variantlarini saqlashda xatolik: ${choicesError.message}`)
+      if (choicesError) {
+        log("db-choices", `insert failed: ${choicesError.message}`)
+        throw new HttpError(500, `Javob variantlarini saqlashda xatolik: ${choicesError.message}`, "db-choices", choicesError)
+      }
     }
 
+    log("done", `test=${testData.id} questions=${insertedQuestions.length}`)
     return jsonResponse({
       success: true,
       test_id: testData.id,
@@ -536,9 +572,12 @@ Deno.serve(async (req) => {
       message: `${insertedQuestions.length} ta savol muvaffaqiyatli import qilindi`,
     })
   } catch (error: unknown) {
-    console.error("parse-pdf-to-test error:", error)
-    if (error instanceof HttpError) return jsonResponse({ error: error.message }, error.status)
-    const errorMessage = error instanceof Error ? error.message : "Xatolik yuz berdi"
-    return jsonResponse({ error: errorMessage }, 500)
+    console.error("[parse-pdf-to-test] FATAL:", error)
+    if (error instanceof HttpError) {
+      return jsonResponse({ error: error.message, stage: error.stage, debug: error.debug }, error.status)
+    }
+    const errorMessage = error instanceof Error ? error.message : "Noma'lum xatolik"
+    const stack = error instanceof Error ? error.stack?.split("\n").slice(0, 3).join(" | ") : undefined
+    return jsonResponse({ error: errorMessage, stage: "fatal", debug: stack }, 500)
   }
 })

@@ -854,7 +854,7 @@ export default function Admin() {
                       <Button variant="outline" onClick={() => setPdfDialogOpen(false)} disabled={importing} className="flex-1">
                         Bekor
                       </Button>
-                      <Button variant="premium" onClick={handlePdfImport} disabled={importing || !pdfFile || !pdfTitle.trim()} className="flex-1 gap-2">
+                      <Button variant="premium" onClick={() => handlePdfImport(0)} disabled={importing || !pdfFile || !pdfTitle.trim()} className="flex-1 gap-2">
                         {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                         Import qilish
                       </Button>

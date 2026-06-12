@@ -331,12 +331,12 @@ MUHIM QOIDALAR:
     })
 
     if (!aiResponse.ok) {
-      if (aiResponse.status === 429) throw new HttpError(429, "Juda ko'p so'rov. 1 daqiqadan keyin qayta urinib ko'ring.")
-      if (aiResponse.status === 402) throw new HttpError(402, "AI krediti tugadi.")
-      if (aiResponse.status === 413) throw new HttpError(413, "PDF juda katta.")
       const errorText = await aiResponse.text()
-      console.error("AI error:", aiResponse.status, errorText)
-      throw new HttpError(500, `AI xatolik: ${aiResponse.status}`)
+      log("ai-call", `AI HTTP ${aiResponse.status}`, errorText.slice(0, 500))
+      if (aiResponse.status === 429) throw new HttpError(429, "AI band: juda ko'p so'rov. 30 sekunddan keyin qayta urinib ko'ring.", "ai-rate-limit", { model: params.model, body: errorText.slice(0, 300) })
+      if (aiResponse.status === 402) throw new HttpError(402, "AI krediti tugadi. Workspace billing ni tekshiring.", "ai-credits", { model: params.model })
+      if (aiResponse.status === 413) throw new HttpError(413, "PDF AI uchun juda katta.", "ai-payload", { model: params.model })
+      throw new HttpError(502, `AI xatolik (${aiResponse.status}): ${errorText.slice(0, 200)}`, "ai-call", { model: params.model, status: aiResponse.status })
     }
 
     const aiData = await aiResponse.json()
@@ -347,7 +347,7 @@ MUHIM QOIDALAR:
     return fallbackQuestions
   } catch (error: unknown) {
     if ((error as Error)?.name === "AbortError") {
-      throw new HttpError(504, "AI javobi juda sekin. Kichikroq PDF bilan urinib ko'ring.")
+      throw new HttpError(504, "AI javobi juda sekin (timeout). Kichikroq PDF bilan urinib ko'ring.", "ai-timeout", { model: params.model, timeoutMs: AI_TIMEOUT_MS })
     }
     throw error
   } finally {

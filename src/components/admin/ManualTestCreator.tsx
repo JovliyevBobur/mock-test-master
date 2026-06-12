@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SUBJECTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { SubjectIcon } from '@/components/SubjectIcon';
 import { Plus, Trash2, CheckCircle, XCircle, Save, Loader2, Lock, BookOpen, FileQuestion, ArrowLeft, ArrowRight, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -258,7 +259,9 @@ export function ManualTestCreator({ open, onOpenChange, userId, isSuperAdmin, on
                     <SelectContent>
                       {SUBJECTS.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
-                          {s.icon} {s.name}
+                          <span className="flex items-center gap-2">
+                            <SubjectIcon subjectId={s.id} size={18} /> {s.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -271,7 +274,7 @@ export function ManualTestCreator({ open, onOpenChange, userId, isSuperAdmin, on
                     value={duration}
                     onChange={(e) => setDuration(Number(e.target.value))}
                     min={5}
-                    max={180}
+                    max={240}
                     className="h-11"
                   />
                 </div>
@@ -403,7 +406,7 @@ export function ManualTestCreator({ open, onOpenChange, userId, isSuperAdmin, on
               <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/10">
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className="text-4xl">{selectedSubject?.icon}</div>
+                    <SubjectIcon subjectId={subject} size={44} />
                     <div className="flex-1">
                       <h3 className="font-serif font-bold text-lg">{title || 'Nomsiz test'}</h3>
                       {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}

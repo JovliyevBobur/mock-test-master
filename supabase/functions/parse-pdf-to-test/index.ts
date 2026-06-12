@@ -18,9 +18,13 @@ interface ParsedQuestion {
 
 class HttpError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  stage: string
+  debug?: unknown
+  constructor(status: number, message: string, stage = "unknown", debug?: unknown) {
     super(message)
     this.status = status
+    this.stage = stage
+    this.debug = debug
   }
 }
 
@@ -35,6 +39,12 @@ const jsonResponse = (body: unknown, status = 200) =>
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   })
+
+const log = (stage: string, msg: string, extra?: unknown) => {
+  const line = `[parse-pdf-to-test][${stage}] ${msg}`
+  if (extra !== undefined) console.log(line, extra)
+  else console.log(line)
+}
 
 function encodeBase64Chunked(bytes: Uint8Array): string {
   const chunkSize = 0x8000

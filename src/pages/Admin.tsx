@@ -847,6 +847,48 @@ export default function Admin() {
                         </div>
 
                         <ImportProgressBar stage={importStage} />
+
+                        {importError && (
+                          <div className="mt-4 p-4 rounded-xl border border-destructive/30 bg-destructive/5 space-y-3 animate-fade-up">
+                            <div className="flex items-start gap-3">
+                              <XCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-destructive">Import muvaffaqiyatsiz tugadi</p>
+                                <p className="text-sm mt-1 break-words">{importError.message}</p>
+                                <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                                  {importError.stage && (
+                                    <Badge variant="outline" className="border-destructive/40 text-destructive">
+                                      bosqich: {importError.stage}
+                                    </Badge>
+                                  )}
+                                  {importError.attempt && (
+                                    <Badge variant="outline">urinish: {importError.attempt}/2</Badge>
+                                  )}
+                                </div>
+                                {importError.debug !== undefined && importError.debug !== null && (
+                                  <details className="mt-2">
+                                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                                      Debug ma'lumotlari
+                                    </summary>
+                                    <pre className="mt-2 text-[11px] bg-muted/50 p-2 rounded overflow-auto max-h-32 whitespace-pre-wrap break-all">
+                                      {typeof importError.debug === 'string' ? importError.debug : JSON.stringify(importError.debug, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-3"
+                                  onClick={() => handlePdfImport(0)}
+                                  disabled={importing}
+                                >
+                                  <Upload className="h-3.5 w-3.5 mr-2" />
+                                  Qayta urinish
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </ScrollArea>
 

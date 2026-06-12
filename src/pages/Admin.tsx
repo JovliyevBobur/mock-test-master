@@ -326,7 +326,7 @@ export default function Admin() {
     fetchStats();
   };
 
-  const handlePdfImport = async () => {
+  const handlePdfImport = async (retryNum = 0): Promise<void> => {
     if (!pdfTitle.trim() || !pdfFile) {
       toast.error('Test nomini va PDF faylni tanlang');
       return;
@@ -338,15 +338,21 @@ export default function Admin() {
     }
 
     if (!pdfFile.name.toLowerCase().endsWith('.pdf')) {
-      toast.error('Faqat PDF fayl yuklash mumkin');
+      toast.error("Faqat PDF formatdagi fayl qabul qilinadi (.pdf)");
       return;
     }
 
     if (pdfFile.size > MAX_PDF_SIZE) {
-      toast.error('PDF hajmi 20MB dan oshmasligi kerak');
+      toast.error(`PDF hajmi 20MB dan oshmasligi kerak (sizniki: ${(pdfFile.size / 1024 / 1024).toFixed(1)}MB)`);
+      return;
+    }
+    if (pdfFile.size < 1024) {
+      toast.error("PDF juda kichik yoki bo'sh ko'rinadi");
       return;
     }
 
+    setImportError(null);
+    setImportAttempt(retryNum + 1);
     setImporting(true);
     setImportStage(1);
     try {
@@ -384,13 +390,16 @@ export default function Admin() {
       setImportStage(3);
 
       const rawResponse = await response.text();
-      const data = rawResponse ? JSON.parse(rawResponse) : {};
+      let data: any = {};
+      try { data = rawResponse ? JSON.parse(rawResponse) : {}; }
+      catch { data = { error: `Server javobi JSON emas: ${rawResponse.slice(0, 200)}` }; }
 
       if (!response.ok) {
-        if (response.status === 429) throw new Error("AI band. 1 daqiqadan keyin qayta urinib ko'ring.");
-        if (response.status === 402) throw new Error("AI krediti tugagan.");
-        if (response.status === 413) throw new Error("PDF juda katta. Hajmini kamaytirib qayta yuklang.");
-        throw new Error(data.error || 'Import xatoligi');
+        const err: any = new Error(data?.error || `HTTP ${response.status}`);
+        err.status = response.status;
+        err.stage = data?.stage;
+        err.debug = data?.debug;
+        throw err;
       }
 
       setImportStage(4);
@@ -403,6 +412,8 @@ export default function Admin() {
         setPreviewDialogOpen(true);
         setImportStage(0);
         setImporting(false);
+        setImportError(null);
+        setImportAttempt(0);
         resetPdfForm();
         fetchTests();
         fetchStats();
@@ -410,11 +421,23 @@ export default function Admin() {
     } catch (error: any) {
       setImportStage(0);
       setImporting(false);
-      if (error?.name === 'AbortError') {
-        toast.error('Import vaqti tugadi. Kichikroq PDF bilan qayta urinib ko\'ring.');
-      } else {
-        toast.error(error.message || 'Import xatoligi');
+
+      const isAbort = error?.name === 'AbortError';
+      const status: number | undefined = error?.status;
+      const transient = isAbort || status === 429 || status === 502 || status === 503 || status === 504 || error?.stage === 'ai-empty';
+      const message = isAbort
+        ? 'Import vaqti tugadi (180s). Kichikroq PDF yoki kamroq sahifa bilan urinib ko\'ring.'
+        : (error.message || 'Import xatoligi');
+
+      // Auto-retry once for transient errors
+      if (transient && retryNum < 1) {
+        toast.warning(`${message} — avtomatik qayta urinish... (${retryNum + 2}/2)`);
+        setTimeout(() => { handlePdfImport(retryNum + 1); }, 2000);
+        return;
       }
+
+      setImportError({ message, stage: error?.stage, debug: error?.debug, attempt: retryNum + 1 });
+      toast.error(message);
     }
   };
 

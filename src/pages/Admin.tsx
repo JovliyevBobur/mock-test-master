@@ -969,7 +969,7 @@ export default function Admin() {
                             key={test.id} 
                             className="flex items-center gap-4 p-4 rounded-xl border bg-card/50 backdrop-blur-sm hover:shadow-md transition-all"
                           >
-                            <div className="text-4xl">{sub?.icon}</div>
+                             <SubjectIcon subjectId={test.subject} size={44} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-serif font-semibold text-lg truncate">{test.title}</h3>

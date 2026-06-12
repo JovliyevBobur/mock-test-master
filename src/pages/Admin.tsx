@@ -910,7 +910,7 @@ export default function Admin() {
                             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white font-bold">
                               {idx + 1}
                             </div>
-                            <div className="text-3xl">{sub?.icon}</div>
+                             <SubjectIcon subjectId={test.subject} size={32} />
                             <div className="flex-1 min-w-0">
                               <h4 className="font-semibold truncate">{test.title}</h4>
                               <p className="text-sm text-muted-foreground">{sub?.name}</p>

@@ -20,6 +20,7 @@ import { SUBJECTS, getSubjectById } from '@/lib/constants';
 import { ImportProgressBar, type ImportStage } from '@/components/admin/ImportProgressBar';
 import { ImportPreviewDialog } from '@/components/admin/ImportPreviewDialog';
 import { ManualTestCreator } from '@/components/admin/ManualTestCreator';
+import { SubjectIcon } from '@/components/SubjectIcon';
 import { 
   Plus, Trash2, Edit, BookOpen, Users, FileQuestion, Loader2, 
   Crown, Shield, CheckCircle, XCircle, Save, LayoutDashboard, TrendingUp,
@@ -748,7 +749,9 @@ export default function Admin() {
                               <SelectContent>
                                 {SUBJECTS.map((s) => (
                                   <SelectItem key={s.id} value={s.id}>
-                                    {s.icon} {s.name}
+                                    <span className="flex items-center gap-2">
+                                      <SubjectIcon subjectId={s.id} size={18} /> {s.name}
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -910,7 +913,7 @@ export default function Admin() {
                             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white font-bold">
                               {idx + 1}
                             </div>
-                            <div className="text-3xl">{sub?.icon}</div>
+                             <SubjectIcon subjectId={test.subject} size={32} />
                             <div className="flex-1 min-w-0">
                               <h4 className="font-semibold truncate">{test.title}</h4>
                               <p className="text-sm text-muted-foreground">{sub?.name}</p>
@@ -968,7 +971,7 @@ export default function Admin() {
                             key={test.id} 
                             className="flex items-center gap-4 p-4 rounded-xl border bg-card/50 backdrop-blur-sm hover:shadow-md transition-all"
                           >
-                            <div className="text-4xl">{sub?.icon}</div>
+                             <SubjectIcon subjectId={test.subject} size={44} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-serif font-semibold text-lg truncate">{test.title}</h3>

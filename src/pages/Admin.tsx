@@ -115,6 +115,8 @@ export default function Admin() {
   const [importedTestId, setImportedTestId] = useState<string | null>(null);
   const [importedTestTitle, setImportedTestTitle] = useState('');
   const [importedQuestionsCount, setImportedQuestionsCount] = useState(0);
+  const [importError, setImportError] = useState<{ message: string; stage?: string; debug?: unknown; attempt?: number } | null>(null);
+  const [importAttempt, setImportAttempt] = useState(0);
 
   // Question form state
   const [newQuestionText, setNewQuestionText] = useState('');

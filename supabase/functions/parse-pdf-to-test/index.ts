@@ -25,10 +25,10 @@ class HttpError extends Error {
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
-const MAX_QUESTIONS = 100
-const AI_TIMEOUT_MS = 180000
-const PRIMARY_MODEL = "google/gemini-2.5-pro"
-const FALLBACK_MODEL = "google/gemini-2.5-flash"
+const MAX_QUESTIONS = 500
+const AI_TIMEOUT_MS = 170000
+const PRIMARY_MODEL = "google/gemini-2.5-flash"
+const FALLBACK_MODEL = "google/gemini-2.5-flash-lite"
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

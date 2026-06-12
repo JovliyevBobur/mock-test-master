@@ -749,7 +749,9 @@ export default function Admin() {
                               <SelectContent>
                                 {SUBJECTS.map((s) => (
                                   <SelectItem key={s.id} value={s.id}>
-                                    {s.icon} {s.name}
+                                    <span className="flex items-center gap-2">
+                                      <SubjectIcon subjectId={s.id} size={18} /> {s.name}
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
